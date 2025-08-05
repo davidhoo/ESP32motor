@@ -1,4 +1,5 @@
 #include "WS2812Test.h"
+#include "../common/Logger.h"
 #include <Arduino.h>
 
 WS2812Test::WS2812Test(WS2812Driver* driver)
@@ -10,7 +11,7 @@ WS2812Test::WS2812Test(WS2812Driver* driver)
 }
 
 bool WS2812Test::initializeTest() {
-    Logger::getInstance().info(String("Test"), "开始WS2812驱动测试...");
+    LOG_TAG_INFO("Test", "开始WS2812驱动测试...");
     
     // 测试WS2812驱动初始化
     bool success = true;
@@ -21,10 +22,10 @@ bool WS2812Test::initializeTest() {
     }
     
     if (success) {
-        Logger::getInstance().info(String("Test"), "WS2812驱动初始化测试完成");
-        Logger::getInstance().info(String("Test"), "开始LED显示效果循环测试...");
+        LOG_TAG_INFO("Test", "WS2812驱动初始化测试完成");
+        LOG_TAG_INFO("Test", "开始LED显示效果循环测试...");
     } else {
-        Logger::getInstance().error(String("Test"), "WS2812驱动初始化测试失败");
+        LOG_TAG_ERROR("Test", "WS2812驱动初始化测试失败");
     }
     
     return success;
@@ -33,7 +34,7 @@ bool WS2812Test::initializeTest() {
 bool WS2812Test::testInitialization() {
     // 初始化WS2812驱动
     ledDriver->begin();
-    Logger::getInstance().info(String("Test"), "WS2812驱动初始化成功");
+    LOG_TAG_INFO("Test", "WS2812驱动初始化成功");
     return true;
 }
 
@@ -73,7 +74,7 @@ bool WS2812Test::testRGBColors() {
         
         switch (rgbTestStep) {
             case 0:
-                Logger::getInstance().info(String("Test"), "测试RGB颜色显示...");
+                LOG_TAG_INFO("Test", "测试RGB颜色显示...");
                 ledDriver->setAllColor(255, 0, 0);  // 红色
                 ledDriver->show();
                 break;
@@ -92,7 +93,7 @@ bool WS2812Test::testRGBColors() {
             case 4:
                 ledDriver->clear();
                 ledDriver->show();
-                Logger::getInstance().info(String("Test"), "RGB颜色测试完成");
+                LOG_TAG_INFO("Test", "RGB颜色测试完成");
                 rgbTestStep = 0;  // 重置步骤
                 return true;
         }
@@ -120,7 +121,7 @@ bool WS2812Test::testHSVColors() {
             // 测试完成，清除LED
             ledDriver->clear();
             ledDriver->show();
-            Logger::getInstance().info(String("Test"), "HSV颜色测试完成");
+            LOG_TAG_INFO("Test", "HSV颜色测试完成");
             hsvTestStep = 0;  // 重置步骤
             return true;
         }
@@ -164,7 +165,7 @@ bool WS2812Test::testBrightnessControl() {
                 // 测试完成，清除LED
                 ledDriver->clear();
                 ledDriver->show();
-                Logger::getInstance().info(String("Test"), "亮度控制测试完成");
+                LOG_TAG_INFO("Test", "亮度控制测试完成");
                 // 重置状态
                 brightnessTestStep = 0;
                 brightnessTestDirection = true;
@@ -198,7 +199,7 @@ void WS2812Test::testAnimations() {
             // 动画测试完成，清除LED
             ledDriver->clear();
             ledDriver->show();
-            Logger::getInstance().info(String("Test"), "动画效果测试完成");
+            LOG_TAG_INFO("Test", "动画效果测试完成");
             // 重置状态
             animationTestStep = 0;
             animationTestCycle = 0;
@@ -207,6 +208,6 @@ void WS2812Test::testAnimations() {
 }
 
 void WS2812Test::showSystemStatus() {
-    Logger::getInstance().info(String("System"), ("系统运行时间: " + String(millis()/1000) + "秒").c_str());
-    Logger::getInstance().info(String("System"), "WS2812 LED测试进行中...");
+    LOG_TAG_INFO("System", "系统运行时间: %lu秒", millis()/1000);
+    LOG_TAG_INFO("System", "WS2812 LED测试进行中...");
 }
