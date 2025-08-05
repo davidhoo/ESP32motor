@@ -9,6 +9,8 @@
 #include "tests/WS2812Test.h"
 #include "drivers/NVSStorageDriver.h"
 #include "tests/NVSStorageTest.h"
+#include "controllers/LEDController.h"
+#include "tests/LEDControllerTest.h"
 
 // 全局对象
 GPIODriver gpioDriver;
@@ -17,6 +19,7 @@ TimerTest timerTest;
 WS2812Driver ws2812Driver(21, 1);  // GPIO 21, 1个LED
 WS2812Test ws2812Test(&ws2812Driver);
 NVSStorageDriver nvsStorageDriver;
+LEDController ledController;
 
 // 测试模式选择
 enum TestMode {
@@ -24,11 +27,12 @@ enum TestMode {
     TIMER_TEST_MODE = 1,
     COMBINED_TEST_MODE = 2,
     WS2812_TEST_MODE = 3,
-    NVS_STORAGE_TEST_MODE = 4
+    NVS_STORAGE_TEST_MODE = 4,
+    LED_CONTROLLER_TEST_MODE = 5
 };
 
 // 当前测试模式
-TestMode currentTestMode = NVS_STORAGE_TEST_MODE; // 默认运行NVS存储测试
+TestMode currentTestMode = LED_CONTROLLER_TEST_MODE; // 默认运行LED控制器测试
 
 // 函数声明
 void runGPIOTests();
@@ -36,6 +40,7 @@ void runTimerTests();
 void runCombinedTests();
 void runWS2812Tests();
 void runNVSStorageTests();
+void runLEDControllerTests();
 
 void setup() {
     // 初始化串口
@@ -86,6 +91,11 @@ void setup() {
             runNVSStorageTests();
             break;
             
+        case LED_CONTROLLER_TEST_MODE:
+            LOG_TAG_INFO("System", "运行模式: LED控制器测试");
+            runLEDControllerTests();
+            break;
+            
         default:
             LOG_TAG_ERROR("System", "未知的测试模式");
             break;
@@ -127,6 +137,51 @@ void loop() {
             // NVS存储测试通常在setup中完成，这里只做简单的状态监控
             delay(5000);
             LOG_TAG_DEBUG("System", "NVS存储测试运行中...");
+            break;
+            
+        case LED_CONTROLLER_TEST_MODE:
+            // LED控制器测试需要持续更新
+            {
+                static unsigned long lastStateChange = 0;
+                static int currentTestState = 0;
+                
+                // 每5秒切换一次状态
+                if (millis() - lastStateChange > 5000) {
+                    lastStateChange = millis();
+                    
+                    switch (currentTestState) {
+                        case 0:
+                            LOG_TAG_INFO("System", "切换到系统初始化状态");
+                            ledController.setState(LEDState::SYSTEM_INIT);
+                            break;
+                        case 1:
+                            LOG_TAG_INFO("System", "切换到电机运行状态");
+                            ledController.setState(LEDState::MOTOR_RUNNING);
+                            break;
+                        case 2:
+                            LOG_TAG_INFO("System", "切换到电机停止状态");
+                            ledController.setState(LEDState::MOTOR_STOPPED);
+                            break;
+                        case 3:
+                            LOG_TAG_INFO("System", "切换到BLE连接状态");
+                            ledController.setState(LEDState::BLE_CONNECTED);
+                            break;
+                        case 4:
+                            LOG_TAG_INFO("System", "切换到BLE断开状态");
+                            ledController.setState(LEDState::BLE_DISCONNECTED);
+                            break;
+                        case 5:
+                            LOG_TAG_INFO("System", "切换到错误状态");
+                            ledController.setState(LEDState::ERROR_STATE);
+                            break;
+                    }
+                    
+                    currentTestState = (currentTestState + 1) % 6;
+                }
+                
+                ledController.update();
+                delay(100);
+            }
             break;
     }
 }
@@ -187,11 +242,17 @@ void runCombinedTests() {
         return;
     }
     
-    // 最后运行NVS存储测试
+    // 运行NVS存储测试
     bool nvsResult = NVSStorageTest::runAllTests();
     
+    // 最后运行LED控制器测试
+    bool ledResult = ledController.init();
+    if (ledResult) {
+        LEDControllerTest::runAllTests();
+    }
+    
     // 输出综合测试结果
-    if (gpioResult && timerResult && ws2812Result && nvsResult) {
+    if (gpioResult && timerResult && ws2812Result && nvsResult && ledResult) {
         LOG_TAG_INFO("System", "综合驱动测试全部通过！");
     } else {
         LOG_TAG_ERROR("System", "综合驱动测试存在失败项");
@@ -199,6 +260,7 @@ void runCombinedTests() {
         LOG_TAG_INFO("System", "定时器测试: %s", timerResult ? "通过" : "失败");
         LOG_TAG_INFO("System", "WS2812测试: %s", ws2812Result ? "通过" : "失败");
         LOG_TAG_INFO("System", "NVS存储测试: %s", nvsResult ? "通过" : "失败");
+        LOG_TAG_INFO("System", "LED控制器测试: %s", ledResult ? "通过" : "失败");
     }
     
     LOG_TAG_INFO("System", "综合驱动测试完成");
@@ -235,4 +297,32 @@ void runNVSStorageTests() {
     }
     
     LOG_TAG_INFO("System", "NVS存储驱动测试完成");
+}
+
+/**
+ * 运行LED控制器测试
+ */
+void runLEDControllerTests() {
+    LOG_TAG_INFO("System", "开始LED控制器测试");
+    
+    // 初始化定时器驱动（LED控制器依赖定时器）
+    TimerDriver::getInstance().init();
+    
+    // 初始化LED控制器
+    bool initResult = ledController.init();
+    if (!initResult) {
+        LOG_TAG_ERROR("System", "LED控制器初始化失败");
+        return;
+    }
+    
+    LOG_TAG_INFO("System", "LED控制器初始化完成");
+    
+    // 运行所有LED控制器测试
+    LEDControllerTest::runAllTests();
+    
+    // 开始循环测试不同状态
+    LOG_TAG_INFO("System", "开始LED状态循环测试...");
+    LOG_TAG_INFO("System", "将在loop()中每5秒切换一次LED状态");
+    
+    LOG_TAG_INFO("System", "LED控制器测试完成");
 }

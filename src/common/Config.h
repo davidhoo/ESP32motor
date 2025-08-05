@@ -62,13 +62,6 @@ enum class MotorState {
     PAUSED          // 暂停
 };
 
-// LED状态枚举
-enum class LEDState {
-    OFF,            // 关闭
-    ON,             // 常亮
-    BLINKING,       // 闪烁
-    BREATHING       // 呼吸
-};
 
 // 配置参数结构体
 struct MotorConfig {
