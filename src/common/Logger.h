@@ -2,7 +2,7 @@
 #define LOGGER_H
 
 #include <Arduino.h>
-#include <HardwareSerial.h>
+#include <Stream.h>
 
 // 日志级别定义
 enum class LogLevel {
@@ -19,7 +19,7 @@ public:
     static Logger& getInstance();
     
     // 初始化日志系统
-    void begin(HardwareSerial* serial, LogLevel level = LogLevel::INFO);
+    void begin(Stream* stream, LogLevel level = LogLevel::INFO);
     
     // 设置日志级别
     void setLevel(LogLevel level);
@@ -50,7 +50,7 @@ private:
     // 内部日志输出函数
     void log(LogLevel level, const char* tag, const char* format, va_list args);
     
-    HardwareSerial* _serial;
+    Stream* _stream;
     LogLevel _level;
     unsigned long _startTime;
 };

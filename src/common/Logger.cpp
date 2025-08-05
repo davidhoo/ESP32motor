@@ -2,7 +2,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-Logger::Logger() : _serial(nullptr), _level(LogLevel::INFO), _startTime(0) {
+Logger::Logger() : _stream(nullptr), _level(LogLevel::INFO), _startTime(0) {
     _startTime = millis();
 }
 
@@ -14,15 +14,10 @@ Logger& Logger::getInstance() {
     return instance;
 }
 
-void Logger::begin(HardwareSerial* serial, LogLevel level) {
-    _serial = serial;
+void Logger::begin(Stream* stream, LogLevel level) {
+    _stream = stream;
     _level = level;
-    if (_serial) {
-        _serial->begin(115200);
-        while (!_serial) {
-            ; // 等待串口就绪
-        }
-    }
+    // Stream 接口不需要 begin() 调用，由调用者负责初始化
 }
 
 void Logger::setLevel(LogLevel level) {
@@ -90,7 +85,7 @@ void Logger::error(const String& tag, const char* format, ...) {
 }
 
 void Logger::log(LogLevel level, const char* tag, const char* format, va_list args) {
-    if (_serial == nullptr || level < _level) {
+    if (_stream == nullptr || level < _level) {
         return;
     }
 
@@ -113,12 +108,16 @@ void Logger::log(LogLevel level, const char* tag, const char* format, va_list ar
     char buffer[256];
     vsnprintf(buffer, sizeof(buffer), format, args);
 
-    // 输出日志
-    _serial->printf("[%3lu.%03lu] [%s]", seconds, milliseconds, levelStr);
+    // 输出日志 - 使用 print 而不是 printf，因为 Stream 接口可能不支持 printf
+    char logBuffer[512];
+    snprintf(logBuffer, sizeof(logBuffer), "[%3lu.%03lu] [%s]", seconds, milliseconds, levelStr);
+    _stream->print(logBuffer);
     
     if (tag != nullptr && strlen(tag) > 0) {
-        _serial->printf(" [%s]", tag);
+        snprintf(logBuffer, sizeof(logBuffer), " [%s]", tag);
+        _stream->print(logBuffer);
     }
     
-    _serial->printf(": %s\n", buffer);
+    snprintf(logBuffer, sizeof(logBuffer), ": %s\n", buffer);
+    _stream->print(logBuffer);
 }
