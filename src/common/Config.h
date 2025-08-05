@@ -29,6 +29,15 @@
 #define MOTOR_ON HIGH         // 电机开启电平
 #define MOTOR_OFF LOW         // 电机关闭电平
 
+// 日志配置
+#define LOG_BUFFER_SIZE 512       // 日志缓冲区大小
+#define LOG_DEFAULT_LEVEL LogLevel::INFO  // 默认日志级别
+#define LOG_ENABLE_COLORS false   // 是否启用颜色输出（串口监视器通常不支持）
+#define LOG_SHOW_TIMESTAMP true   // 是否显示时间戳
+#define LOG_SHOW_MILLISECONDS true // 时间戳是否包含毫秒
+#define LOG_SHOW_LEVEL true       // 是否显示日志级别
+#define LOG_SHOW_TAG true         // 是否显示标签
+
 // BLE配置
 #define BLE_DEVICE_NAME "ESP32-Motor-Control"
 #define BLE_SERVICE_UUID "12345678-1234-1234-1234-123456789abc"

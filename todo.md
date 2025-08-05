@@ -29,9 +29,9 @@
 - [x] 验证LED显示效果
 
 ### 2.4 NVS存储驱动模块
-- [ ] 实现NVSStorage类，支持配置参数的读写和删除
-- [ ] 定义MotorConfig结构体和存储格式
-- [ ] 验证数据持久化功能
+- [x] 实现NVSStorage类，支持配置参数的读写和删除
+- [x] 定义MotorConfig结构体和存储格式
+- [x] 验证数据持久化功能
 
 ## 阶段3: 业务逻辑层开发 (Business Logic Layer)
 
