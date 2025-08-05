@@ -3,9 +3,9 @@
 ## 阶段1: 项目准备 (Project Setup)
 
 ### 1.1 开发环境配置
-- [ ] 验证PlatformIO配置和ESP32-S3-Zero板型设置
-- [ ] 配置必要的编译标志和分区表
-- [ ] 设置调试和监控环境
+- [x] 验证PlatformIO配置和ESP32-S3-Zero板型设置
+- [x] 配置必要的编译标志和分区表
+- [x] 设置调试和监控环境
 
 ### 1.2 项目结构搭建
 - [ ] 创建标准的目录结构 (src/controllers, src/drivers, src/common)
