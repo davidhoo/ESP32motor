@@ -8,9 +8,9 @@
 - [x] 设置调试和监控环境
 
 ### 1.2 项目结构搭建
-- [ ] 创建标准的目录结构 (src/controllers, src/drivers, src/common)
-- [ ] 创建全局配置文件 (Config.h) 定义GPIO引脚和常量
-- [ ] 创建基础的日志工具 (Logger.h/.cpp)
+- [x] 创建标准的目录结构 (src/controllers, src/drivers, src/common)
+- [x] 创建全局配置文件 (Config.h) 定义GPIO引脚和常量
+- [x] 创建基础的日志工具 (Logger.h/.cpp)
 
 ## 阶段2: 硬件抽象层开发 (Hardware Abstraction Layer)
 
