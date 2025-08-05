@@ -1,4 +1,5 @@
 #include "GPIOTest.h"
+#include "../common/Logger.h"
 #include <Arduino.h>
 
 GPIOTest::GPIOTest(GPIODriver* driver) 
@@ -6,7 +7,7 @@ GPIOTest::GPIOTest(GPIODriver* driver)
 }
 
 bool GPIOTest::initializeTest() {
-    Logger::getInstance().info("Test", "开始GPIO驱动测试...");
+    LOG_TAG_INFO("Test", "开始GPIO驱动测试...");
     
     // 测试GPIO驱动初始化
     bool success = true;
@@ -27,10 +28,10 @@ bool GPIOTest::initializeTest() {
     }
     
     if (success) {
-        Logger::getInstance().info("Test", "GPIO驱动初始化测试完成");
-        Logger::getInstance().info("Test", "开始电机控制循环测试...");
+        LOG_TAG_INFO("Test", "GPIO驱动初始化测试完成");
+        LOG_TAG_INFO("Test", "开始电机控制循环测试...");
     } else {
-        Logger::getInstance().error("Test", "GPIO驱动初始化测试失败");
+        LOG_TAG_ERROR("Test", "GPIO驱动初始化测试失败");
     }
     
     return success;
@@ -40,10 +41,10 @@ bool GPIOTest::testPinInitialization() {
     // 初始化电机控制引脚 GPIO 7
     bool motorPinInit = gpioDriver->init(MOTOR_PIN, OUTPUT, MOTOR_OFF);
     if (motorPinInit) {
-        Logger::getInstance().info("Test", "电机控制引脚 GPIO7 初始化成功");
+        LOG_TAG_INFO("Test", "电机控制引脚 GPIO7 初始化成功");
         return true;
     } else {
-        Logger::getInstance().error("Test", "电机控制引脚 GPIO7 初始化失败");
+        LOG_TAG_ERROR("Test", "电机控制引脚 GPIO7 初始化失败");
         return false;
     }
 }
@@ -51,12 +52,12 @@ bool GPIOTest::testPinInitialization() {
 bool GPIOTest::testPinStatusQuery() {
     // 测试引脚状态查询
     if (gpioDriver->isPinInitialized(MOTOR_PIN)) {
-        Logger::getInstance().info("Test", "GPIO7 已正确初始化");
+        LOG_TAG_INFO("Test", "GPIO7 已正确初始化");
         int mode = gpioDriver->getPinMode(MOTOR_PIN);
-        Logger::getInstance().info("Test", ("GPIO7 模式: " + String(mode)).c_str());
+        LOG_TAG_INFO("Test", "GPIO7 模式: %d", mode);
         return true;
     } else {
-        Logger::getInstance().error("Test", "GPIO7 状态查询失败");
+        LOG_TAG_ERROR("Test", "GPIO7 状态查询失败");
         return false;
     }
 }
@@ -65,10 +66,10 @@ bool GPIOTest::testInvalidPin() {
     // 测试无效引脚
     bool invalidPinTest = gpioDriver->init(99, OUTPUT, LOW);
     if (!invalidPinTest) {
-        Logger::getInstance().info("Test", "无效引脚测试通过 - 正确拒绝了无效引脚");
+        LOG_TAG_INFO("Test", "无效引脚测试通过 - 正确拒绝了无效引脚");
         return true;
     } else {
-        Logger::getInstance().error("Test", "无效引脚测试失败 - 应该拒绝无效引脚");
+        LOG_TAG_ERROR("Test", "无效引脚测试失败 - 应该拒绝无效引脚");
         return false;
     }
 }
@@ -105,21 +106,21 @@ bool GPIOTest::testMotorControl() {
     bool result = gpioDriver->digitalWrite(MOTOR_PIN, outputLevel);
     
     if (result) {
-        String stateStr = motorState ? "启动" : "停止";
-        String levelStr = (outputLevel == HIGH) ? "HIGH" : "LOW";
-        Logger::getInstance().info("Motor", ("第" + String(cycleCount) + "次循环 - 电机" + stateStr + " (GPIO7=" + levelStr + ")").c_str());
+        const char* stateStr = motorState ? "启动" : "停止";
+        const char* levelStr = (outputLevel == HIGH) ? "HIGH" : "LOW";
+        LOG_TAG_INFO("Motor", "第%d次循环 - 电机%s (GPIO7=%s)", cycleCount, stateStr, levelStr);
     } else {
-        Logger::getInstance().error("Motor", "电机控制失败");
+        LOG_TAG_ERROR("Motor", "电机控制失败");
         return false;
     }
     
     // 测试引脚状态读取
     int readState = gpioDriver->digitalRead(MOTOR_PIN);
     if (readState >= 0) {
-        String readStr = (readState == HIGH) ? "HIGH" : "LOW";
-        Logger::getInstance().debug("Motor", ("GPIO7 读取状态: " + readStr).c_str());
+        const char* readStr = (readState == HIGH) ? "HIGH" : "LOW";
+        LOG_TAG_DEBUG("Motor", "GPIO7 读取状态: %s", readStr);
     } else {
-        Logger::getInstance().error("Motor", "GPIO7 状态读取失败");
+        LOG_TAG_ERROR("Motor", "GPIO7 状态读取失败");
         return false;
     }
     
@@ -127,15 +128,15 @@ bool GPIOTest::testMotorControl() {
 }
 
 void GPIOTest::testPinToggle() {
-    Logger::getInstance().info("Test", "测试引脚切换功能...");
+    LOG_TAG_INFO("Test", "测试引脚切换功能...");
     delay(500);
     gpioDriver->togglePin(MOTOR_PIN);
     delay(500);
     gpioDriver->togglePin(MOTOR_PIN);
-    Logger::getInstance().info("Test", "引脚切换测试完成");
+    LOG_TAG_INFO("Test", "引脚切换测试完成");
 }
 
 void GPIOTest::showSystemStatus() {
-    Logger::getInstance().info("System", ("系统运行时间: " + String(millis()/1000) + "秒").c_str());
-    Logger::getInstance().info("System", ("已完成测试循环: " + String(cycleCount) + "次").c_str());
+    LOG_TAG_INFO("System", "系统运行时间: %lu秒", millis()/1000);
+    LOG_TAG_INFO("System", "已完成测试循环: %d次", cycleCount);
 }
