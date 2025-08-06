@@ -1,5 +1,6 @@
 #include "MotorController.h"
 #include "../drivers/GPIODriver.h"
+#include "../common/EventManager.h"
 
 // 单例实例
 MotorController& MotorController::getInstance() {
@@ -132,42 +133,70 @@ void MotorController::update() {
 
 // 处理停止状态
 void MotorController::handleStoppedState() {
-    // 检查是否需要开始新的运行周期
-    if (remainingStopTime == 0 && currentConfig.stopDuration > 0) {
-        // 如果是第一次启动或者需要等待停止时间
+    // 检查是否达到循环次数限制
+    if (currentConfig.cycleCount > 0 && cycleCount >= currentConfig.cycleCount) {
+        LOG_TAG_INFO("MotorController", "已完成所有循环 (%lu/%lu)，保持停止状态",
+                     cycleCount, currentConfig.cycleCount);
+        return; // 不再启动新的循环
+    }
+    
+    // 处理停止间隔为0的持续运行模式
+    if (currentConfig.stopDuration == 0) {
+        LOG_TAG_INFO("MotorController", "持续运行模式，立即启动下一个周期");
+        setState(MotorControllerState::STARTING);
+        return;
+    }
+    
+    // 初始化停止时间倒计时
+    if (remainingStopTime == 0) {
         remainingStopTime = currentConfig.stopDuration / 1000; // 转换为秒
         stateStartTime = millis();
-    } else if (currentConfig.stopDuration == 0) {
-        // 如果停止时间为0，立即开始运行
+        LOG_TAG_INFO("MotorController", "开始停止间隔倒计时: %lu 秒", remainingStopTime);
+    }
+    
+    // 更新停止时间倒计时
+    uint32_t elapsed = (millis() - stateStartTime) / 1000;
+    if (elapsed >= remainingStopTime) {
+        // 停止时间结束，开始下一个运行周期
+        remainingStopTime = 0;
+        LOG_TAG_INFO("MotorController", "停止间隔结束，启动下一个运行周期");
         setState(MotorControllerState::STARTING);
-    } else if (remainingStopTime > 0) {
-        // 倒计时停止时间
-        uint32_t elapsed = (millis() - stateStartTime) / 1000;
-        if (elapsed >= remainingStopTime) {
-            remainingStopTime = 0;
-            setState(MotorControllerState::STARTING);
-        } else {
-            remainingStopTime = (currentConfig.stopDuration / 1000) - elapsed;
-        }
+    } else {
+        // 更新剩余停止时间
+        remainingStopTime = (currentConfig.stopDuration / 1000) - elapsed;
     }
 }
 
 // 处理运行状态
 void MotorController::handleRunningState() {
+    // 初始化运行时间倒计时
     if (remainingRunTime == 0) {
         remainingRunTime = currentConfig.runDuration / 1000; // 转换为秒
         stateStartTime = millis();
+        LOG_TAG_INFO("MotorController", "开始运行时间倒计时: %lu 秒", remainingRunTime);
     }
     
-    // 倒计时运行时间
+    // 更新运行时间倒计时
     uint32_t elapsed = (millis() - stateStartTime) / 1000;
     if (elapsed >= remainingRunTime) {
-        // 运行时间结束，开始停止
+        // 运行时间结束，完成一个循环
         remainingRunTime = 0;
         cycleCount++;
-        LOG_TAG_INFO("MotorController", "运行周期完成，循环次数: %lu", cycleCount);
+        
+        LOG_TAG_INFO("MotorController", "运行周期完成，当前循环次数: %lu/%s",
+                     cycleCount,
+                     (currentConfig.cycleCount == 0) ? "∞" : String(currentConfig.cycleCount).c_str());
+        
+        // 检查是否需要继续循环
+        if (currentConfig.cycleCount > 0 && cycleCount >= currentConfig.cycleCount) {
+            LOG_TAG_INFO("MotorController", "所有循环已完成，停止电机");
+        } else {
+            LOG_TAG_INFO("MotorController", "准备进入停止间隔");
+        }
+        
         setState(MotorControllerState::STOPPING);
     } else {
+        // 更新剩余运行时间
         remainingRunTime = (currentConfig.runDuration / 1000) - elapsed;
     }
 }
@@ -176,6 +205,13 @@ void MotorController::handleRunningState() {
 void MotorController::handleStoppingState() {
     // 立即停止电机
     stopMotorInternal();
+    // 发布电机停止事件
+    EventManager::getInstance().publish(EventData(
+        EventType::MOTOR_STOP,
+        "MotorController",
+        "电机停止，循环次数: " + String(cycleCount)
+    ));
+    
     setState(MotorControllerState::STOPPED);
 }
 
@@ -183,6 +219,13 @@ void MotorController::handleStoppingState() {
 void MotorController::handleStartingState() {
     // 启动电机
     startMotorInternal();
+    // 发布电机启动事件
+    EventManager::getInstance().publish(EventData(
+        EventType::MOTOR_START,
+        "MotorController",
+        "电机启动，目标循环: " + String(currentConfig.cycleCount == 0 ? "无限" : String(currentConfig.cycleCount))
+    ));
+    
     setState(MotorControllerState::RUNNING);
 }
 

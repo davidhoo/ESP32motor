@@ -206,6 +206,9 @@ void MotorBLEServer::handleConfigWrite(const String& value) {
         if (doc.containsKey("stopDuration")) {
             currentConfig.stopDuration = doc["stopDuration"];
         }
+        if (doc.containsKey("cycleCount")) {
+            currentConfig.cycleCount = doc["cycleCount"];
+        }
         if (doc.containsKey("autoStart")) {
             currentConfig.autoStart = doc["autoStart"];
         }
@@ -214,8 +217,8 @@ void MotorBLEServer::handleConfigWrite(const String& value) {
         configManager.updateConfig(currentConfig);
         configManager.saveConfig();
         
-        LOG_INFO("配置已更新: 运行=%u, 停止=%u, 自动启动=%s",
-                 currentConfig.runDuration, currentConfig.stopDuration,
+        LOG_INFO("配置已更新: 运行=%u, 停止=%u, 循环=%u, 自动启动=%s",
+                 currentConfig.runDuration, currentConfig.stopDuration, currentConfig.cycleCount,
                  currentConfig.autoStart ? "是" : "否");
                  
     } catch (const std::exception& e) {
@@ -289,6 +292,7 @@ String MotorBLEServer::generateStatusJson() {
     MotorConfig config = configManager.getConfig();
     doc["runDuration"] = config.runDuration;
     doc["stopDuration"] = config.stopDuration;
+    doc["cycleCount"] = config.cycleCount;
     doc["autoStart"] = config.autoStart;
     
     // 系统信息

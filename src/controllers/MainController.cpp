@@ -419,16 +419,38 @@ void MainController::handleMotorEvent(const EventData& event) {
             if (ledControllerInitialized) {
                 ledController.setState(LEDState::MOTOR_RUNNING);
             }
+            // 通知BLE客户端电机状态变化
+            if (bleServerInitialized) {
+                MotorBLEServer::getInstance().sendStatusNotification(
+                    MotorBLEServer::getInstance().generateStatusJson()
+                );
+            }
             break;
             
         case EventType::MOTOR_STOP:
             if (ledControllerInitialized) {
-                ledController.setState(LEDState::BLE_CONNECTED);
+                // 根据BLE连接状态设置LED
+                if (bleServerInitialized && MotorBLEServer::getInstance().isConnected()) {
+                    ledController.setState(LEDState::BLE_CONNECTED);
+                } else {
+                    ledController.setState(LEDState::MOTOR_STOPPED);
+                }
+            }
+            // 通知BLE客户端电机状态变化
+            if (bleServerInitialized) {
+                MotorBLEServer::getInstance().sendStatusNotification(
+                    MotorBLEServer::getInstance().generateStatusJson()
+                );
             }
             break;
             
         case EventType::MOTOR_SPEED_CHANGED:
-            // 可以在这里添加速度变化的视觉反馈
+            // 通知BLE客户端电机参数变化
+            if (bleServerInitialized) {
+                MotorBLEServer::getInstance().sendStatusNotification(
+                    MotorBLEServer::getInstance().generateStatusJson()
+                );
+            }
             break;
             
         default:
@@ -447,13 +469,23 @@ void MainController::handleBLEEvent(const EventData& event) {
     switch (event.type) {
         case EventType::BLE_CONNECTED:
             if (ledControllerInitialized) {
-                ledController.setState(LEDState::BLE_CONNECTED);
+                // 如果电机正在运行，优先显示电机状态
+                if (motorControllerInitialized && MotorController::getInstance().isRunning()) {
+                    ledController.setState(LEDState::MOTOR_RUNNING);
+                } else {
+                    ledController.setState(LEDState::BLE_CONNECTED);
+                }
             }
             break;
             
         case EventType::BLE_DISCONNECTED:
             if (ledControllerInitialized) {
-                ledController.setState(LEDState::BLE_DISCONNECTED);
+                // 如果电机正在运行，优先显示电机状态
+                if (motorControllerInitialized && MotorController::getInstance().isRunning()) {
+                    ledController.setState(LEDState::MOTOR_RUNNING);
+                } else {
+                    ledController.setState(LEDState::BLE_DISCONNECTED);
+                }
             }
             break;
             

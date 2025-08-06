@@ -18,6 +18,7 @@
 #include "tests/MotorBLEServerTest.h"
 #include "tests/EventManagerTest.h"
 #include "tests/StateManagerTest.h"
+#include "tests/MotorCycleTest.h"
 
 // 全局对象
 GPIODriver gpioDriver;
@@ -40,11 +41,12 @@ enum TestMode {
     MOTOR_CONTROLLER_TEST_MODE = 7,
     BLE_SERVER_TEST_MODE = 8,
     EVENT_MANAGER_TEST_MODE = 9,
-    STATE_MANAGER_TEST_MODE = 10
+    STATE_MANAGER_TEST_MODE = 10,
+    MOTOR_CYCLE_TEST_MODE = 11
 };
 
 // 当前测试模式
-TestMode currentTestMode = STATE_MANAGER_TEST_MODE; // 运行StateManager集成测试
+TestMode currentTestMode = MOTOR_CYCLE_TEST_MODE; // 运行电机循环控制测试
 
 // 函数声明
 void runGPIOTests();
@@ -58,6 +60,7 @@ void runMotorControllerTests();
 void runBLEServerTests();
 void runEventManagerTests();
 void runStateManagerTests();
+void runMotorCycleTests();
 
 void setup() {
     // 初始化串口
@@ -137,6 +140,11 @@ void setup() {
         case STATE_MANAGER_TEST_MODE:
             LOG_TAG_INFO("System", "运行模式: StateManager测试");
             runStateManagerTests();
+            break;
+            
+        case MOTOR_CYCLE_TEST_MODE:
+            LOG_TAG_INFO("System", "运行模式: 电机循环控制测试");
+            runMotorCycleTests();
             break;
             
         default:
@@ -633,4 +641,22 @@ void runStateManagerTests() {
     
     LOG_TAG_INFO("System", "StateManager集成测试初始化完成！");
     LOG_TAG_INFO("System", "将在loop()中进行状态转换测试");
+}
+
+/**
+ * 运行电机循环控制测试
+ */
+void runMotorCycleTests() {
+    LOG_TAG_INFO("System", "开始电机循环控制测试");
+    
+    // 运行所有电机循环控制测试
+    bool testResult = MotorCycleTest::runAllTests();
+    
+    if (testResult) {
+        LOG_TAG_INFO("System", "电机循环控制测试全部通过！");
+    } else {
+        LOG_TAG_ERROR("System", "电机循环控制测试存在失败项");
+    }
+    
+    LOG_TAG_INFO("System", "电机循环控制测试完成！");
 }
