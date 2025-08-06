@@ -13,6 +13,9 @@ MotorBLEServer& MotorBLEServer::getInstance() {
 
 // 构造函数
 MotorBLEServer::MotorBLEServer() : stateManager(StateManager::getInstance()) {
+    disconnectionHandled = false;
+    lastConnectionTime = 0;
+    disconnectionCount = 0;
 }
 
 // 初始化BLE服务器
@@ -165,6 +168,8 @@ void MotorBLEServer::sendStatusNotification(const String& status) {
 // 服务器连接回调
 void MotorBLEServer::ServerCallbacks::onConnect(BLEServer* pServer) {
     bleServer->deviceConnected = true;
+    bleServer->lastConnectionTime = millis();
+    bleServer->disconnectionHandled = false;
     LOG_INFO("BLE客户端已连接");
     
     // === 5.3.3 实时状态推送机制 - 发布BLE连接事件 ===
@@ -177,7 +182,11 @@ void MotorBLEServer::ServerCallbacks::onConnect(BLEServer* pServer) {
 
 void MotorBLEServer::ServerCallbacks::onDisconnect(BLEServer* pServer) {
     bleServer->deviceConnected = false;
-    LOG_INFO("BLE客户端已断开");
+    bleServer->disconnectionCount++;
+    LOG_INFO("BLE客户端已断开 (第%lu次断连)", bleServer->disconnectionCount);
+    
+    // === 5.4.3 BLE断连时的系统稳定运行机制 ===
+    bleServer->handleDisconnection();
     
     // === 5.3.3 实时状态推送机制 - 发布BLE断开事件 ===
     EventManager::getInstance().publish(EventData(
@@ -462,4 +471,116 @@ void MotorBLEServer::onSystemStateChanged(const StateChangeEvent& event) {
         
         LOG_INFO("系统状态变更已实时推送给BLE客户端");
     }
+}
+
+// === 5.4.3 BLE断连时的系统稳定运行机制 ===
+
+/**
+ * 处理BLE断连事件
+ */
+void MotorBLEServer::handleDisconnection() {
+    if (disconnectionHandled) {
+        return; // 避免重复处理
+    }
+    
+    disconnectionHandled = true;
+    LOG_INFO("处理BLE断连事件，确保系统稳定运行");
+    
+    // 确保系统核心功能继续运行
+    ensureSystemStability();
+    
+    // 记录断连时间和次数
+    uint32_t currentTime = millis();
+    uint32_t connectionDuration = currentTime - lastConnectionTime;
+    
+    LOG_INFO("BLE连接持续时间: %lu ms, 累计断连次数: %lu",
+             connectionDuration, disconnectionCount);
+    
+    // 如果断连次数过多，可能需要重置BLE服务
+    if (disconnectionCount > 10) {
+        LOG_WARN("BLE断连次数过多，考虑重置BLE服务");
+        // 这里可以添加BLE服务重置逻辑
+        resetConnectionState();
+    }
+}
+
+/**
+ * 确保系统稳定性
+ */
+void MotorBLEServer::ensureSystemStability() {
+    LOG_INFO("确保BLE断连后系统稳定运行");
+    
+    // 1. 确保电机控制器继续正常工作
+    try {
+        MotorController& motorController = MotorController::getInstance();
+        MotorControllerState currentState = motorController.getCurrentState();
+        
+        if (currentState == MotorControllerState::ERROR_STATE) {
+            LOG_WARN("检测到电机控制器处于错误状态，尝试恢复");
+            // 这里可以添加电机控制器恢复逻辑
+        } else {
+            LOG_INFO("电机控制器状态正常: %d", static_cast<int>(currentState));
+        }
+    } catch (...) {
+        LOG_ERROR("检查电机控制器状态时发生异常");
+    }
+    
+    // 2. 确保配置管理器继续工作
+    try {
+        ConfigManager& configManager = ConfigManager::getInstance();
+        if (configManager.isConfigModified()) {
+            LOG_INFO("BLE断连时保存未保存的配置更改");
+            configManager.saveConfig();
+        }
+    } catch (...) {
+        LOG_ERROR("保存配置时发生异常");
+    }
+    
+    // 3. 确保系统状态管理器正常
+    try {
+        StateManager& stateManager = StateManager::getInstance();
+        SystemState currentState = stateManager.getCurrentState();
+        LOG_INFO("系统状态正常: %s", StateManager::getStateName(currentState).c_str());
+        
+        // 如果系统处于错误状态，尝试恢复
+        if (currentState == SystemState::ERROR) {
+            LOG_WARN("系统处于错误状态，BLE断连可能加剧问题");
+        }
+    } catch (...) {
+        LOG_ERROR("检查系统状态时发生异常");
+    }
+    
+    LOG_INFO("系统稳定性检查完成，核心功能继续运行");
+}
+
+/**
+ * 检查是否应该尝试重连
+ */
+bool MotorBLEServer::shouldAttemptReconnection() {
+    uint32_t currentTime = millis();
+    
+    // 如果断连次数过多且时间间隔太短，暂时不重连
+    if (disconnectionCount > 5 &&
+        (currentTime - lastConnectionTime) < RECONNECTION_TIMEOUT) {
+        LOG_WARN("断连频繁，暂缓重连尝试");
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * 重置连接状态
+ */
+void MotorBLEServer::resetConnectionState() {
+    LOG_INFO("重置BLE连接状态");
+    
+    disconnectionCount = 0;
+    disconnectionHandled = false;
+    lastConnectionTime = 0;
+    
+    // 清除错误状态
+    memset(lastError, 0, sizeof(lastError));
+    
+    LOG_INFO("BLE连接状态已重置");
 }

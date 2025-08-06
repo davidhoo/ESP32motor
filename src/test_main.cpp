@@ -20,6 +20,7 @@
 #include "tests/StateManagerTest.h"
 #include "tests/MotorCycleTest.h"
 #include "tests/BLEInteractionTest.h"
+#include "tests/ErrorHandlingTest.h"
 
 // 全局对象
 GPIODriver gpioDriver;
@@ -44,11 +45,12 @@ enum TestMode {
     EVENT_MANAGER_TEST_MODE = 9,
     STATE_MANAGER_TEST_MODE = 10,
     MOTOR_CYCLE_TEST_MODE = 11,
-    BLE_INTERACTION_TEST_MODE = 12
+    BLE_INTERACTION_TEST_MODE = 12,
+    ERROR_HANDLING_TEST_MODE = 13
 };
 
 // 当前测试模式
-TestMode currentTestMode = BLE_INTERACTION_TEST_MODE; // 运行BLE交互流程测试
+TestMode currentTestMode = ERROR_HANDLING_TEST_MODE; // 运行错误处理测试
 
 // 函数声明
 void runGPIOTests();
@@ -64,6 +66,7 @@ void runEventManagerTests();
 void runStateManagerTests();
 void runMotorCycleTests();
 void runBLEInteractionTests();
+void runErrorHandlingTests();
 
 void setup() {
     // 初始化串口
@@ -153,6 +156,11 @@ void setup() {
         case BLE_INTERACTION_TEST_MODE:
             LOG_TAG_INFO("System", "运行模式: BLE交互流程测试");
             runBLEInteractionTests();
+            break;
+            
+        case ERROR_HANDLING_TEST_MODE:
+            LOG_TAG_INFO("System", "运行模式: 错误处理测试");
+            runErrorHandlingTests();
             break;
             
         default:
@@ -692,4 +700,35 @@ void runBLEInteractionTests() {
     LOG_TAG_INFO("System", "%s", bleInteractionTest.getTestSummary().c_str());
     
     LOG_TAG_INFO("System", "BLE交互流程测试完成！");
+}
+
+/**
+ * 运行错误处理测试
+ */
+void runErrorHandlingTests() {
+    LOG_TAG_INFO("System", "开始错误处理测试");
+    LOG_TAG_INFO("System", "测试todo.md 5.4部分的错误处理机制功能");
+    
+    // 运行所有错误处理测试
+    ErrorHandlingTest errorHandlingTest;
+    errorHandlingTest.runAllTests();
+    
+    // 获取测试结果
+    bool allTestsPassed = errorHandlingTest.allTestsPassed();
+    int passedCount = errorHandlingTest.getPassedCount();
+    int failedCount = errorHandlingTest.getFailedCount();
+    
+    if (allTestsPassed) {
+        LOG_TAG_INFO("System", "错误处理测试全部通过！");
+        LOG_TAG_INFO("System", "✅ todo.md 5.4部分 错误处理机制 已完成实现和验证");
+    } else {
+        LOG_TAG_ERROR("System", "错误处理测试存在失败项");
+        LOG_TAG_ERROR("System", "❌ todo.md 5.4部分 错误处理机制 测试未完全通过");
+    }
+    
+    LOG_TAG_INFO("System", "测试摘要:");
+    LOG_TAG_INFO("System", "通过测试: %d, 失败测试: %d, 总计: %d",
+                 passedCount, failedCount, passedCount + failedCount);
+    
+    LOG_TAG_INFO("System", "错误处理测试完成！");
 }

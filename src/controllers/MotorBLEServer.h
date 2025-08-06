@@ -85,10 +85,16 @@ private:
     BLECharacteristic* pInfoCharacteristic = nullptr;
     
     // 状态
+    // 状态
     bool deviceConnected = false;
     bool oldDeviceConnected = false;
     char lastError[128] = "";
     
+    // === 5.4.3 BLE断连时的系统稳定运行机制 ===
+    bool disconnectionHandled = false;
+    uint32_t lastConnectionTime = 0;
+    uint32_t disconnectionCount = 0;
+    static const uint32_t RECONNECTION_TIMEOUT = 30000; // 30秒重连超时
     // StateManager引用
     StateManager& stateManager;
     
@@ -126,6 +132,12 @@ private:
     
     // 内部方法
     void setError(const char* error);
+    
+    // === 5.4.3 BLE断连时的系统稳定运行机制 ===
+    void handleDisconnection();
+    void ensureSystemStability();
+    bool shouldAttemptReconnection();
+    void resetConnectionState();
 };
 
 #endif // MOTOR_BLE_SERVER_H

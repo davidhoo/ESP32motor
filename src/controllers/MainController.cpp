@@ -2,6 +2,7 @@
 #include "common/Logger.h"
 #include "../common/EventManager.h"
 #include <Arduino.h>
+#include <cstring>
 
 // 单例实例
 MainController& MainController::getInstance() {
@@ -10,14 +11,17 @@ MainController& MainController::getInstance() {
 }
 
 // 构造函数
-MainController::MainController() 
+MainController::MainController()
     : running(false)
     , initialized(false)
     , motorControllerInitialized(false)
     , ledControllerInitialized(false)
     , configManagerInitialized(false)
-    , bleServerInitialized(false) {
+    , bleServerInitialized(false)
+    , initRetryCount(0)
+    , criticalModulesFailed(false) {
     
+    memset(lastInitError, 0, sizeof(lastInitError));
     Logger::getInstance().info("MainController", "创建主控制器实例");
 }
 
@@ -55,9 +59,9 @@ bool MainController::init() {
     // === 5.1 系统启动流程实现 ===
     // 步骤1: LED初始化指示
     Logger::getInstance().info("MainController", "步骤1: 初始化LED指示系统...");
-    if (!initializeLEDController()) {
-        Logger::getInstance().error("MainController", "LED控制器初始化失败");
-        cleanup();
+    if (!initializeWithRetry("LED控制器", [this]() { return initializeLEDController(); }, true)) {
+        Logger::getInstance().error("MainController", "LED控制器初始化失败，进入安全模式");
+        enterSafeMode();
         return false;
     }
     // 设置系统初始化LED指示（蓝色闪烁）
@@ -66,49 +70,53 @@ bool MainController::init() {
     
     // 步骤2: 初始化事件管理器
     Logger::getInstance().info("MainController", "步骤2: 初始化事件管理器...");
-    if (!initializeEventManager()) {
-        Logger::getInstance().error("MainController", "事件管理器初始化失败");
+    if (!initializeWithRetry("事件管理器", [this]() { return initializeEventManager(); }, true)) {
+        Logger::getInstance().error("MainController", "事件管理器初始化失败，进入安全模式");
         if (ledControllerInitialized) {
             ledController.setState(LEDState::ERROR_STATE);
         }
-        cleanup();
+        enterSafeMode();
         return false;
     }
     
     // 步骤3: NVS参数加载
     Logger::getInstance().info("MainController", "步骤3: 加载NVS配置参数...");
-    if (!initializeConfigManager()) {
-        Logger::getInstance().error("MainController", "配置管理器初始化失败");
+    if (!initializeWithRetry("配置管理器", [this]() { return initializeConfigManager(); }, true)) {
+        Logger::getInstance().error("MainController", "配置管理器初始化失败，使用默认配置继续");
         if (ledControllerInitialized) {
             ledController.setState(LEDState::ERROR_STATE);
         }
-        cleanup();
-        return false;
+        // 配置管理器失败时，尝试使用默认配置继续运行
+        if (!canContinueWithoutModule("配置管理器")) {
+            enterSafeMode();
+            return false;
+        }
+    } else {
+        Logger::getInstance().info("MainController", "NVS配置参数加载完成");
     }
-    Logger::getInstance().info("MainController", "NVS配置参数加载完成");
     
     // 步骤4: 初始化电机控制器
     Logger::getInstance().info("MainController", "步骤4: 初始化电机控制器...");
-    if (!initializeMotorController()) {
-        Logger::getInstance().error("MainController", "电机控制器初始化失败");
+    if (!initializeWithRetry("电机控制器", [this]() { return initializeMotorController(); }, true)) {
+        Logger::getInstance().error("MainController", "电机控制器初始化失败，进入安全模式");
         if (ledControllerInitialized) {
             ledController.setState(LEDState::ERROR_STATE);
         }
-        cleanup();
+        enterSafeMode();
         return false;
     }
     
     // 步骤5: BLE服务启动
     Logger::getInstance().info("MainController", "步骤5: 启动BLE服务...");
-    if (!initializeBLEServer()) {
-        Logger::getInstance().error("MainController", "BLE服务器初始化失败");
+    if (!initializeWithRetry("BLE服务器", [this]() { return initializeBLEServer(); }, false)) {
+        Logger::getInstance().warn("MainController", "BLE服务器初始化失败，系统将在无BLE模式下运行");
         if (ledControllerInitialized) {
-            ledController.setState(LEDState::ERROR_STATE);
+            ledController.setState(LEDState::BLE_DISCONNECTED);
         }
-        cleanup();
-        return false;
+        // BLE不是关键模块，可以继续运行
+    } else {
+        Logger::getInstance().info("MainController", "BLE服务启动完成");
     }
-    Logger::getInstance().info("MainController", "BLE服务启动完成");
     
     // 步骤6: 设置事件监听器
     Logger::getInstance().info("MainController", "步骤6: 设置事件监听器...");
@@ -144,6 +152,19 @@ void MainController::run() {
         return;
     }
     
+    // 检查是否处于安全模式
+    if (criticalModulesFailed) {
+        Logger::getInstance().error("MainController", "系统处于安全模式，功能受限");
+        // 在安全模式下，只保持基本的LED指示
+        while (running) {
+            if (ledControllerInitialized) {
+                ledController.update();
+            }
+            delay(100); // 安全模式下降低更新频率
+        }
+        return;
+    }
+    
     running = true;
     Logger::getInstance().info("MainController", "系统开始运行");
     
@@ -154,19 +175,36 @@ void MainController::run() {
         // 处理事件队列
         EventManager::getInstance().processEvents();
         
-        // 更新BLE通信
+        // 更新BLE通信（如果可用）
         if (bleServerInitialized) {
-            MotorBLEServer::getInstance().update();
+            try {
+                MotorBLEServer::getInstance().update();
+            } catch (...) {
+                Logger::getInstance().error("MainController", "BLE更新异常，停用BLE服务");
+                bleServerInitialized = false;
+            }
         }
         
-        // 更新电机状态
+        // 更新电机状态（如果可用）
         if (motorControllerInitialized) {
-            MotorController::getInstance().update();
+            try {
+                MotorController::getInstance().update();
+            } catch (...) {
+                Logger::getInstance().error("MainController", "电机控制器更新异常");
+                // 电机控制器异常是严重问题，进入安全模式
+                enterSafeMode();
+                break;
+            }
         }
         
-        // 更新LED状态
+        // 更新LED状态（如果可用）
         if (ledControllerInitialized) {
-            ledController.update();
+            try {
+                ledController.update();
+            } catch (...) {
+                Logger::getInstance().error("MainController", "LED控制器更新异常，停用LED");
+                ledControllerInitialized = false;
+            }
         }
         
         // 简单的延时，避免CPU占用过高
@@ -515,4 +553,108 @@ void MainController::handleConfigEvent(const EventData& event) {
         Logger::getInstance().info("MainController", "配置已更新，重新应用设置...");
         // 这里可以触发相关模块重新加载配置
     }
+}
+
+// === 5.4.1 模块初始化失败的错误处理机制 ===
+
+/**
+ * 带重试机制的模块初始化
+ */
+bool MainController::initializeWithRetry(const char* moduleName, std::function<bool()> initFunc, bool isCritical) {
+    initRetryCount = 0;
+    
+    while (initRetryCount < MAX_INIT_RETRIES) {
+        Logger::getInstance().info("MainController", "尝试初始化%s (第%d次)", moduleName, initRetryCount + 1);
+        
+        if (initFunc()) {
+            Logger::getInstance().info("MainController", "%s初始化成功", moduleName);
+            return true;
+        }
+        
+        initRetryCount++;
+        
+        if (initRetryCount < MAX_INIT_RETRIES) {
+            Logger::getInstance().warn("MainController", "%s初始化失败，%d秒后重试 (第%d次)",
+                                     moduleName, initRetryCount, initRetryCount);
+            delay(initRetryCount * 1000); // 递增延时：1s, 2s, 3s
+        }
+    }
+    
+    // 所有重试都失败
+    setInitError(String(moduleName + String("初始化失败，已重试") + String(MAX_INIT_RETRIES) + "次").c_str());
+    Logger::getInstance().error("MainController", "%s初始化最终失败", moduleName);
+    
+    if (isCritical) {
+        criticalModulesFailed = true;
+        Logger::getInstance().error("MainController", "关键模块%s初始化失败，系统无法正常运行", moduleName);
+    }
+    
+    return false;
+}
+
+/**
+ * 设置初始化错误信息
+ */
+void MainController::setInitError(const char* error) {
+    if (error) {
+        strncpy(lastInitError, error, sizeof(lastInitError) - 1);
+        lastInitError[sizeof(lastInitError) - 1] = '\0';
+    } else {
+        memset(lastInitError, 0, sizeof(lastInitError));
+    }
+}
+
+/**
+ * 检查是否可以在没有某个模块的情况下继续运行
+ */
+bool MainController::canContinueWithoutModule(const char* moduleName) {
+    String module(moduleName);
+    
+    // 配置管理器失败时，可以使用默认配置继续
+    if (module == "配置管理器") {
+        Logger::getInstance().warn("MainController", "配置管理器不可用，将使用默认配置");
+        // 这里可以设置一些默认的配置值
+        return true;
+    }
+    
+    // BLE服务器失败时，可以在离线模式下继续
+    if (module == "BLE服务器") {
+        Logger::getInstance().warn("MainController", "BLE服务器不可用，系统将在离线模式下运行");
+        return true;
+    }
+    
+    // LED控制器、电机控制器、事件管理器是关键模块
+    return false;
+}
+
+/**
+ * 进入安全模式
+ */
+void MainController::enterSafeMode() {
+    Logger::getInstance().error("MainController", "系统进入安全模式");
+    
+    // 设置LED为错误状态（如果可用）
+    if (ledControllerInitialized) {
+        ledController.setState(LEDState::ERROR_STATE);
+    }
+    
+    // 停止所有非关键服务
+    if (bleServerInitialized) {
+        Logger::getInstance().info("MainController", "安全模式：停止BLE服务");
+        MotorBLEServer::getInstance().stop();
+        bleServerInitialized = false;
+    }
+    
+    if (motorControllerInitialized) {
+        Logger::getInstance().info("MainController", "安全模式：停止电机控制器");
+        MotorController::getInstance().stopMotor();
+        motorControllerInitialized = false;
+    }
+    
+    // 标记系统为未初始化状态
+    initialized = false;
+    criticalModulesFailed = true;
+    
+    Logger::getInstance().error("MainController", "安全模式激活，系统功能受限");
+    Logger::getInstance().error("MainController", "最后错误: %s", lastInitError);
 }

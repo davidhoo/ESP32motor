@@ -69,6 +69,13 @@ public:
     bool validateConfig(const MotorConfig& config) const;
     
     /**
+     * 验证并修正配置参数（5.4.2 参数越界检查和默认值回退）
+     * @param config 要验证和修正的配置（引用传递，会被修改）
+     * @return 是否进行了修正
+     */
+    bool validateAndSanitizeConfig(MotorConfig& config) const;
+    
+    /**
      * 获取配置验证错误信息
      * @return 错误信息
      */

@@ -6,6 +6,7 @@
 #include "ConfigManager.h"
 #include "MotorBLEServer.h"
 #include "../common/EventManager.h"
+#include <functional>
 
 /**
  * @brief 主控制器类 - 系统核心管理器
@@ -86,6 +87,12 @@ private:
     bool initializeConfigManager();
     bool initializeBLEServer();
     
+    // 错误处理和重试机制
+    bool initializeWithRetry(const char* moduleName, std::function<bool()> initFunc, bool isCritical = true);
+    void setInitError(const char* error);
+    bool canContinueWithoutModule(const char* moduleName);
+    void enterSafeMode();
+    
     // 清理资源
     void cleanup();
     
@@ -101,6 +108,12 @@ private:
     bool ledControllerInitialized;
     bool configManagerInitialized;
     bool bleServerInitialized;
+    
+    // 错误处理相关
+    int initRetryCount;
+    static const int MAX_INIT_RETRIES = 3;
+    char lastInitError[256];
+    bool criticalModulesFailed;
     
     // 事件系统相关
     bool initializeEventManager();

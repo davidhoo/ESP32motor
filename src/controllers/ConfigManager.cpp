@@ -1,5 +1,6 @@
 #include "ConfigManager.h"
 #include <cstring>
+#include <algorithm>
 #include "../common/Logger.h"
 
 /**
@@ -88,11 +89,15 @@ bool ConfigManager::loadConfig() {
         LOG_TAG_ERROR("ConfigManager", "从NVS加载配置失败: %s", nvsStorage.getLastError());
         return false;
     }
+    // 验证并修正加载的配置
+    if (!validateAndSanitizeConfig(loadedConfig)) {
+        LOG_TAG_WARN("ConfigManager", "加载的配置存在问题，已自动修正: %s", getValidationError());
+    }
     
-    // 验证加载的配置
+    // 再次验证修正后的配置
     if (!validateConfig(loadedConfig)) {
-        setLastError("加载的配置无效");
-        LOG_TAG_WARN("ConfigManager", "加载的配置无效: %s", getValidationError());
+        setLastError("加载的配置无效且无法修正");
+        LOG_TAG_ERROR("ConfigManager", "加载的配置无效且无法修正: %s", getValidationError());
         resetToDefaults();
         return false;
     }
@@ -191,25 +196,31 @@ const MotorConfig& ConfigManager::getConfig() const {
  * 更新配置
  */
 void ConfigManager::updateConfig(const MotorConfig& config) {
-    if (validateConfig(config)) {
-        MotorConfig oldConfig = currentConfig;
-        currentConfig = config;
-        isModified = true;
-        
-        // 如果配置发生重要变化，通知系统状态
-        if (oldConfig.autoStart != config.autoStart) {
-            if (config.autoStart) {
-                // 如果启用了自动启动，且系统处于空闲状态，切换到运行状态
-                if (stateManager.getCurrentState() == SystemState::IDLE) {
-                    stateManager.setState(SystemState::RUNNING, "配置启用自动启动");
-                }
+    MotorConfig safeConfig = config;
+    
+    // === 5.4.2 参数越界检查和默认值回退功能 ===
+    if (!validateAndSanitizeConfig(safeConfig)) {
+        LOG_TAG_WARN("ConfigManager", "配置参数越界，已自动修正: %s", getValidationError());
+    }
+    
+    MotorConfig oldConfig = currentConfig;
+    currentConfig = safeConfig;
+    isModified = true;
+    
+    // 如果配置发生重要变化，通知系统状态
+    if (oldConfig.autoStart != safeConfig.autoStart) {
+        if (safeConfig.autoStart) {
+            // 如果启用了自动启动，且系统处于空闲状态，切换到运行状态
+            if (stateManager.getCurrentState() == SystemState::IDLE) {
+                stateManager.setState(SystemState::RUNNING, "配置启用自动启动");
             }
         }
-        
-        LOG_TAG_INFO("ConfigManager", "配置已更新");
-    } else {
-        LOG_TAG_WARN("ConfigManager", "尝试更新无效配置: %s", getValidationError());
     }
+    
+    LOG_TAG_INFO("ConfigManager", "配置已更新");
+    LOG_TAG_DEBUG("ConfigManager", "运行时长: %lu ms, 停止时长: %lu ms, 循环次数: %lu, 自动启动: %s",
+                  currentConfig.runDuration, currentConfig.stopDuration,
+                  currentConfig.cycleCount, currentConfig.autoStart ? "是" : "否");
 }
 
 /**
@@ -340,4 +351,72 @@ void ConfigManager::onSystemStateChanged(const StateChangeEvent& event) {
             }
             break;
     }
+}
+
+// === 5.4.2 参数越界检查和默认值回退功能 ===
+
+/**
+ * 验证并修正配置参数
+ */
+bool ConfigManager::validateAndSanitizeConfig(MotorConfig& config) const {
+    bool wasModified = false;
+    String corrections = "";
+    
+    // 修正运行时长
+    if (config.runDuration < 100) {
+        corrections += "运行时长过小，已修正为100ms; ";
+        config.runDuration = 100;
+        wasModified = true;
+    } else if (config.runDuration > 3600000) {
+        corrections += "运行时长过大，已修正为3600000ms; ";
+        config.runDuration = 3600000;
+        wasModified = true;
+    }
+    
+    // 修正停止时长
+    if (config.stopDuration < 0) {
+        corrections += "停止时长为负数，已修正为0ms; ";
+        config.stopDuration = 0;
+        wasModified = true;
+    } else if (config.stopDuration > 3600000) {
+        corrections += "停止时长过大，已修正为3600000ms; ";
+        config.stopDuration = 3600000;
+        wasModified = true;
+    }
+    
+    // 修正循环次数
+    if (config.cycleCount > 1000000) {
+        corrections += "循环次数过大，已修正为1000000次; ";
+        config.cycleCount = 1000000;
+        wasModified = true;
+    }
+    
+    // 特殊情况处理：如果运行时长和停止时长都为0，使用默认值
+    if (config.runDuration == 0 && config.stopDuration == 0) {
+        corrections += "运行和停止时长都为0，已恢复为默认值; ";
+        config.runDuration = defaultConfig.runDuration;
+        config.stopDuration = defaultConfig.stopDuration;
+        wasModified = true;
+    }
+    
+    // 合理性检查：如果运行时长过短而停止时长过长，给出警告并调整
+    if (config.runDuration < 1000 && config.stopDuration > 60000) {
+        corrections += "运行时长过短而停止时长过长，已调整为合理比例; ";
+        config.runDuration = (config.runDuration > 1000ul) ? config.runDuration : 1000ul;
+        config.stopDuration = (config.stopDuration < 30000ul) ? config.stopDuration : 30000ul;
+        wasModified = true;
+    }
+    
+    // 设置验证错误信息
+    if (wasModified) {
+        const_cast<ConfigManager*>(this)->setValidationError(corrections.c_str());
+        LOG_TAG_WARN("ConfigManager", "配置参数已自动修正: %s", corrections.c_str());
+        LOG_TAG_INFO("ConfigManager", "修正后配置 - 运行: %lums, 停止: %lums, 循环: %lu次, 自动启动: %s",
+                     config.runDuration, config.stopDuration, config.cycleCount,
+                     config.autoStart ? "是" : "否");
+    } else {
+        const_cast<ConfigManager*>(this)->setValidationError("");
+    }
+    
+    return !wasModified; // 返回true表示没有修正，false表示进行了修正
 }
