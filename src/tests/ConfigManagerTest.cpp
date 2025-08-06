@@ -58,8 +58,8 @@ void ConfigManagerTest::testConfigValidation() {
     
     // 测试有效配置
     MotorConfig validConfig;
-    validConfig.runDuration = 5000;
-    validConfig.stopDuration = 2000;
+    validConfig.runDuration = 5;
+    validConfig.stopDuration = 2;
     validConfig.cycleCount = 10;
     validConfig.autoStart = true;
     
@@ -67,15 +67,15 @@ void ConfigManagerTest::testConfigValidation() {
     
     // 测试无效运行时长
     MotorConfig invalidRunDuration = validConfig;
-    invalidRunDuration.runDuration = 50;  // 小于100ms
+    invalidRunDuration.runDuration = 0;  // 小于1秒
     assertFalse(manager.validateConfig(invalidRunDuration), "运行时长过小应该失败");
     
-    invalidRunDuration.runDuration = 4000000;  // 大于1小时
+    invalidRunDuration.runDuration = 1000;  // 大于999秒
     assertFalse(manager.validateConfig(invalidRunDuration), "运行时长过大应该失败");
     
     // 测试无效停止时长
     MotorConfig invalidStopDuration = validConfig;
-    invalidStopDuration.stopDuration = 4000000;  // 大于1小时
+    invalidStopDuration.stopDuration = 1000;  // 大于999秒
     assertFalse(manager.validateConfig(invalidStopDuration), "停止时长过大应该失败");
     
     // 测试无效循环次数
@@ -99,8 +99,8 @@ void ConfigManagerTest::testLoadSaveConfig() {
     
     // 创建测试配置
     MotorConfig testConfig;
-    testConfig.runDuration = 3000;
-    testConfig.stopDuration = 1500;
+    testConfig.runDuration = 30;
+    testConfig.stopDuration = 15;
     testConfig.cycleCount = 5;
     testConfig.autoStart = false;
     
@@ -116,8 +116,8 @@ void ConfigManagerTest::testLoadSaveConfig() {
     
     // 验证当前配置已重置
     const MotorConfig& defaultConfig = manager.getConfig();
-    assertEqual(5000, defaultConfig.runDuration, "重置后应该使用默认运行时长");
-    assertEqual(2000, defaultConfig.stopDuration, "重置后应该使用默认停止时长");
+    assertEqual(5, defaultConfig.runDuration, "重置后应该使用默认运行时长");
+    assertEqual(2, defaultConfig.stopDuration, "重置后应该使用默认停止时长");
     assertEqual(0, defaultConfig.cycleCount, "重置后应该使用默认循环次数");
     assertEqual(true, defaultConfig.autoStart, "重置后应该使用默认自动启动设置");
     
@@ -127,8 +127,8 @@ void ConfigManagerTest::testLoadSaveConfig() {
     
     // 验证加载的配置
     const MotorConfig& loadedConfig = manager.getConfig();
-    assertEqual(3000, loadedConfig.runDuration, "加载的运行时长应该匹配");
-    assertEqual(1500, loadedConfig.stopDuration, "加载的停止时长应该匹配");
+    assertEqual(30, loadedConfig.runDuration, "加载的运行时长应该匹配");
+    assertEqual(15, loadedConfig.stopDuration, "加载的停止时长应该匹配");
     assertEqual(5, loadedConfig.cycleCount, "加载的循环次数应该匹配");
     assertEqual(false, loadedConfig.autoStart, "加载的自动启动设置应该匹配");
     
@@ -147,8 +147,8 @@ void ConfigManagerTest::testDefaultValues() {
     const MotorConfig& config = manager.getConfig();
     
     // 验证默认值
-    assertEqual(5000, config.runDuration, "默认运行时长应该是5000ms");
-    assertEqual(2000, config.stopDuration, "默认停止时长应该是2000ms");
+    assertEqual(5, config.runDuration, "默认运行时长应该是5秒");
+    assertEqual(2, config.stopDuration, "默认停止时长应该是2秒");
     assertEqual(0, config.cycleCount, "默认循环次数应该是0（无限）");
     assertEqual(true, config.autoStart, "默认应该自动启动");
     
@@ -171,7 +171,7 @@ void ConfigManagerTest::testConfigModification() {
     
     // 创建新配置
     MotorConfig newConfig;
-    newConfig.runDuration = 8000;
+    newConfig.runDuration = 80;
     
     // 更新配置
     manager.updateConfig(newConfig);
@@ -194,10 +194,10 @@ void ConfigManagerTest::testErrorHandling() {
     
     // 测试无效配置的错误信息
     MotorConfig invalidConfig;
-    invalidConfig.runDuration = 50;  // 无效值
+    invalidConfig.runDuration = 0;  // 无效值
     
     assertFalse(manager.validateConfig(invalidConfig), "无效配置应该失败");
-    assertEqualString("运行时长必须在100ms到3600000ms之间", manager.getValidationError(), "应该返回正确的验证错误");
+    assertEqualString("运行时长必须在1秒到999秒之间", manager.getValidationError(), "应该返回正确的验证错误");
     
     Serial.println("✓ 错误处理测试通过");
 }
@@ -214,14 +214,14 @@ void ConfigManagerTest::testBoundaryValues() {
     MotorConfig boundaryConfig;
     
     // 最小有效值
-    boundaryConfig.runDuration = 100;
-    boundaryConfig.stopDuration = 0;
+    boundaryConfig.runDuration = 1;
+    boundaryConfig.stopDuration = 1;
     boundaryConfig.cycleCount = 0;
     assertTrue(manager.validateConfig(boundaryConfig), "最小边界值应该有效");
     
     // 最大有效值
-    boundaryConfig.runDuration = 3600000;
-    boundaryConfig.stopDuration = 3600000;
+    boundaryConfig.runDuration = 999;
+    boundaryConfig.stopDuration = 999;
     boundaryConfig.cycleCount = 1000000;
     assertTrue(manager.validateConfig(boundaryConfig), "最大边界值应该有效");
     

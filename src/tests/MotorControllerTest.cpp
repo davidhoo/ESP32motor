@@ -32,12 +32,12 @@ void MotorControllerTest::testInit() {
                 "初始状态应该是STOPPED");
     
     // 验证初始配置
+    // 验证初始配置
     const MotorConfig& config = motorController.getCurrentConfig();
-    assertEqual(5000u, config.runDuration, "默认运行时间应该是5000ms");
-    assertEqual(2000u, config.stopDuration, "默认停止时间应该是2000ms");
+    assertEqual(5u, config.runDuration, "默认运行时间应该是5秒");
+    assertEqual(2u, config.stopDuration, "默认停止时间应该是2秒");
     assertEqual(0u, config.cycleCount, "默认循环次数应该是0");
     assertEqual(true, config.autoStart, "默认应该自动启动");
-    
     LOG_TAG_INFO("MotorControllerTest", "初始化测试通过");
 }
 
@@ -100,8 +100,8 @@ void MotorControllerTest::testCycleControl() {
     
     // 设置短时间的测试配置
     MotorConfig testConfig;
-    testConfig.runDuration = 1000;   // 1秒运行
-    testConfig.stopDuration = 1000;  // 1秒停止
+    testConfig.runDuration = 1;      // 1秒运行
+    testConfig.stopDuration = 1;     // 1秒停止
     testConfig.cycleCount = 2;       // 2次循环
     
     motorController.updateConfig(testConfig);
@@ -128,10 +128,10 @@ void MotorControllerTest::testCountdown() {
     MotorController& motorController = MotorController::getInstance();
     
     // 设置测试配置
+    // 设置测试配置
     MotorConfig testConfig;
-    testConfig.runDuration = 3000;   // 3秒运行
-    testConfig.stopDuration = 2000;  // 2秒停止
-    
+    testConfig.runDuration = 3;      // 3秒运行
+    testConfig.stopDuration = 2;     // 2秒停止
     motorController.updateConfig(testConfig);
     
     // 启动电机
@@ -162,9 +162,10 @@ void MotorControllerTest::testConfigUpdate() {
     MotorConfig originalConfig = motorController.getCurrentConfig();
     
     // 创建新配置
+    // 创建新配置
     MotorConfig newConfig;
-    newConfig.runDuration = 10000;   // 10秒运行
-    newConfig.stopDuration = 5000;   // 5秒停止
+    newConfig.runDuration = 10;      // 10秒运行
+    newConfig.stopDuration = 5;      // 5秒停止
     newConfig.cycleCount = 10;       // 10次循环
     newConfig.autoStart = false;     // 不自动启动
     
@@ -173,11 +174,10 @@ void MotorControllerTest::testConfigUpdate() {
     
     // 验证配置已更新
     const MotorConfig& updatedConfig = motorController.getCurrentConfig();
-    assertEqual(10000u, updatedConfig.runDuration, "运行时间应该更新为10000ms");
-    assertEqual(5000u, updatedConfig.stopDuration, "停止时间应该更新为5000ms");
+    assertEqual(10u, updatedConfig.runDuration, "运行时间应该更新为10秒");
+    assertEqual(5u, updatedConfig.stopDuration, "停止时间应该更新为5秒");
     assertEqual(10u, updatedConfig.cycleCount, "循环次数应该更新为10");
     assertEqual(false, updatedConfig.autoStart, "自动启动应该更新为false");
-    
     // 恢复原始配置
     motorController.updateConfig(originalConfig);
     
@@ -221,10 +221,10 @@ void MotorControllerTest::testBoundaryConditions() {
     motorController.updateConfig(zeroConfig);
     
     // 测试大值配置
+    // 测试大值配置
     MotorConfig largeConfig;
-    largeConfig.runDuration = 3600000;  // 1小时
-    largeConfig.stopDuration = 3600000; // 1小时
-    
+    largeConfig.runDuration = 999;       // 999秒（最大值）
+    largeConfig.stopDuration = 999;      // 999秒（最大值）
     motorController.updateConfig(largeConfig);
     
     LOG_TAG_INFO("MotorControllerTest", "边界条件测试通过");

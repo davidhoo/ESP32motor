@@ -235,13 +235,21 @@ bool MainController::initializeConfigManager() {
             return false;
         }
         
+        // loadConfig() 现在总是返回 true，要么加载成功，要么使用默认配置
         if (!config.loadConfig()) {
-            Logger::getInstance().error("MainController", "配置管理器loadConfig()失败");
-            return false;
+            Logger::getInstance().warn("MainController", "配置管理器loadConfig()失败，但系统将继续使用默认配置");
+            // 即使加载失败，也继续初始化，因为已经有默认配置了
         }
         
         configManagerInitialized = true;
         Logger::getInstance().info("MainController", "配置管理器初始化成功");
+        
+        // 打印当前使用的配置
+        const MotorConfig& currentConfig = config.getConfig();
+        Logger::getInstance().info("MainController", "当前配置 - 运行: %lu秒, 停止: %lu秒, 循环: %lu次, 自动启动: %s",
+                                  currentConfig.runDuration, currentConfig.stopDuration,
+                                  currentConfig.cycleCount, currentConfig.autoStart ? "是" : "否");
+        
         return true;
         
     } catch (...) {

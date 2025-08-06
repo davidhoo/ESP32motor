@@ -56,15 +56,15 @@ enum class MotorState {
 
 // 配置参数结构体
 struct MotorConfig {
-    uint32_t runDuration;     // 运行时长 (毫秒)
-    uint32_t stopDuration;    // 停止时长 (毫秒)
+    uint32_t runDuration;     // 运行时长 (秒)
+    uint32_t stopDuration;    // 停止时长 (秒)
     uint32_t cycleCount;      // 循环次数 (0表示无限循环)
     bool autoStart;          // 是否自动启动
     
     // 构造函数
-    MotorConfig() : 
-        runDuration(5000),    // 默认5秒
-        stopDuration(2000),   // 默认2秒
+    MotorConfig() :
+        runDuration(5),       // 默认5秒
+        stopDuration(2),      // 默认2秒
         cycleCount(0),        // 默认无限循环
         autoStart(true)       // 默认自动启动
     {}
