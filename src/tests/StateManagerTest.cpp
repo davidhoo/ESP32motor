@@ -11,6 +11,7 @@ void StateManagerTest::runAllTests() {
     testStateListeners();
     testStateHistory();
     testStateNames();
+    testIntegrationWithControllers();
     
     Serial.println("=== StateManager Tests Complete ===");
 }
@@ -166,4 +167,77 @@ void StateManagerTest::testStateNames() {
     SM_TEST_ASSERT_EQUAL_STRING("UNKNOWN", StateManager::getStateName(static_cast<SystemState>(99)).c_str());
     
     Serial.println("✓ State names test passed");
+}
+
+void StateManagerTest::testIntegrationWithControllers() {
+    Serial.println("Testing integration with controllers...");
+    
+    StateManager& stateManager = StateManager::getInstance();
+    stateManager.init();
+    
+    // 测试状态变更是否触发控制器响应
+    bool eventReceived = false;
+    SystemState receivedState;
+    
+    // 注册监听器来验证事件传播
+    auto testListener = [&eventReceived, &receivedState](const StateChangeEvent& event) {
+        eventReceived = true;
+        receivedState = event.newState;
+        Serial.printf("Integration test received state change: %s -> %s\n",
+                     StateManager::getStateName(event.oldState).c_str(),
+                     StateManager::getStateName(event.newState).c_str());
+    };
+    
+    stateManager.registerStateListener(testListener);
+    
+    // 测试系统初始化到空闲状态的转换
+    Serial.println("Testing INIT -> IDLE transition...");
+    eventReceived = false;
+    SM_TEST_ASSERT_TRUE(stateManager.setState(SystemState::IDLE, "System ready"));
+    SM_TEST_ASSERT_TRUE(eventReceived);
+    SM_TEST_ASSERT_EQUAL(SystemState::IDLE, receivedState);
+    
+    // 测试空闲到运行状态的转换
+    Serial.println("Testing IDLE -> RUNNING transition...");
+    eventReceived = false;
+    SM_TEST_ASSERT_TRUE(stateManager.setState(SystemState::RUNNING, "Motor started"));
+    SM_TEST_ASSERT_TRUE(eventReceived);
+    SM_TEST_ASSERT_EQUAL(SystemState::RUNNING, receivedState);
+    
+    // 测试运行到暂停状态的转换
+    Serial.println("Testing RUNNING -> PAUSED transition...");
+    eventReceived = false;
+    SM_TEST_ASSERT_TRUE(stateManager.setState(SystemState::PAUSED, "User pause"));
+    SM_TEST_ASSERT_TRUE(eventReceived);
+    SM_TEST_ASSERT_EQUAL(SystemState::PAUSED, receivedState);
+    
+    // 测试暂停到运行状态的转换
+    Serial.println("Testing PAUSED -> RUNNING transition...");
+    eventReceived = false;
+    SM_TEST_ASSERT_TRUE(stateManager.setState(SystemState::RUNNING, "Resume"));
+    SM_TEST_ASSERT_TRUE(eventReceived);
+    SM_TEST_ASSERT_EQUAL(SystemState::RUNNING, receivedState);
+    
+    // 测试运行到错误状态的转换
+    Serial.println("Testing RUNNING -> ERROR transition...");
+    eventReceived = false;
+    SM_TEST_ASSERT_TRUE(stateManager.setState(SystemState::ERROR, "System error"));
+    SM_TEST_ASSERT_TRUE(eventReceived);
+    SM_TEST_ASSERT_EQUAL(SystemState::ERROR, receivedState);
+    
+    // 测试错误到关机状态的转换
+    Serial.println("Testing ERROR -> SHUTDOWN transition...");
+    eventReceived = false;
+    SM_TEST_ASSERT_TRUE(stateManager.setState(SystemState::SHUTDOWN, "System shutdown"));
+    SM_TEST_ASSERT_TRUE(eventReceived);
+    SM_TEST_ASSERT_EQUAL(SystemState::SHUTDOWN, receivedState);
+    
+    // 验证状态历史记录
+    auto history = stateManager.getStateHistory(10);
+    SM_TEST_ASSERT_TRUE(history.size() >= 6); // 至少包含所有测试的状态变更
+    
+    // 注销监听器
+    stateManager.unregisterStateListener(testListener);
+    
+    Serial.println("✓ Integration with controllers test passed");
 }

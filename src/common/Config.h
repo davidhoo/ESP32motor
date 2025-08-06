@@ -46,15 +46,6 @@
 #define BLE_CHAR_COMMAND_UUID "fedcba98-7654-3210-fedc-ba0987654321"
 #define BLE_CHAR_INFO_UUID "11223344-5566-7788-99aa-bbccddeeff00"
 
-// 系统状态枚举
-enum class SystemState {
-    INIT,           // 初始化状态
-    IDLE,           // 空闲状态
-    RUNNING,        // 运行状态
-    STOPPED,        // 停止状态
-    ERROR           // 错误状态
-};
-
 // 电机状态枚举
 enum class MotorState {
     STOPPED,        // 停止

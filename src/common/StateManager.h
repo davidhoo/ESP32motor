@@ -118,14 +118,23 @@ private:
     // 状态验证
     bool isValidStateTransition(SystemState fromState, SystemState toState) const;
     
+    // 添加状态到历史记录
+    void addToHistory(const StateChangeEvent& event);
+    
     // 当前状态
     SystemState m_currentState;
     
-    // 状态变更历史
-    std::vector<StateChangeEvent> m_stateHistory;
+    // 使用固定大小的环形缓冲区替代std::vector以避免内存碎片
+    static const size_t MAX_HISTORY_SIZE = 20;
+    StateChangeEvent m_stateHistory[MAX_HISTORY_SIZE];
+    size_t m_historyHead = 0;
+    size_t m_historyCount = 0;
     
-    // 状态监听器列表
-    std::vector<std::function<void(const StateChangeEvent&)>> m_listeners;
+    // 使用固定大小的数组替代std::vector，并添加有效性标记
+    static const size_t MAX_LISTENERS = 10;
+    std::function<void(const StateChangeEvent&)> m_listeners[MAX_LISTENERS];
+    bool m_listenerValid[MAX_LISTENERS];  // 标记监听器是否有效
+    size_t m_listenerCount = 0;
     
     // 状态转换规则映射
     static const std::map<SystemState, std::vector<SystemState>> m_validTransitions;

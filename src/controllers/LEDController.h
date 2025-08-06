@@ -4,6 +4,7 @@
 #include "../drivers/WS2812Driver.h"
 #include "../drivers/TimerDriver.h"
 #include "../common/Logger.h"
+#include "../common/StateManager.h"
 #include <memory>
 
 /**
@@ -27,6 +28,7 @@ class LEDController {
 private:
     std::unique_ptr<WS2812Driver> ws2812;  // WS2812驱动智能指针
     TimerDriver& timer;                    // 定时器驱动引用
+    StateManager& stateManager;            // 状态管理器引用
     LEDState currentState;                 // 当前LED状态
     bool isBlinking;                       // 是否正在闪烁
     bool ledOn;                            // LED当前开关状态
@@ -135,6 +137,12 @@ private:
      * @brief 清除LED显示
      */
     void clearLED();
+    
+    /**
+     * @brief 系统状态变更回调
+     * @param event 状态变更事件
+     */
+    void onSystemStateChanged(const StateChangeEvent& event);
 };
 
 #endif // LED_CONTROLLER_H

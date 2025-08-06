@@ -13,6 +13,7 @@ const uint8_t LEDController::COLOR_OFF[3] = {0, 0, 0};
 LEDController::LEDController()
     : ws2812(std::unique_ptr<WS2812Driver>(new WS2812Driver(21, 1)))  // GPIO 21, 1个LED
     , timer(TimerDriver::getInstance())
+    , stateManager(StateManager::getInstance())
     , currentState(LEDState::SYSTEM_INIT)
     , isBlinking(false)
     , ledOn(false)
@@ -39,6 +40,11 @@ bool LEDController::init() {
     
     // 清除LED显示
     clearLED();
+    
+    // 注册系统状态变更监听器
+    stateManager.registerStateListener([this](const StateChangeEvent& event) {
+        this->onSystemStateChanged(event);
+    });
     
     LOG_TAG_INFO("LEDController", "LED控制器初始化完成");
     return true;
@@ -228,4 +234,45 @@ uint8_t LEDController::getBlinkCount() const {
 
 uint8_t LEDController::getMaxBlinkCount() const {
     return maxBlinkCount;
+}
+
+// 系统状态变更回调
+void LEDController::onSystemStateChanged(const StateChangeEvent& event) {
+    LOG_TAG_INFO("LEDController", "系统状态变更: %s -> %s",
+                 StateManager::getStateName(event.oldState).c_str(),
+                 StateManager::getStateName(event.newState).c_str());
+    
+    // 根据系统状态自动切换LED显示
+    switch (event.newState) {
+        case SystemState::INIT:
+            // 系统初始化 - 蓝色闪烁
+            setState(LEDState::SYSTEM_INIT);
+            break;
+            
+        case SystemState::IDLE:
+            // 系统空闲 - 根据BLE连接状态显示
+            // 这里可以检查BLE连接状态，暂时显示为停止状态
+            setState(LEDState::MOTOR_STOPPED);
+            break;
+            
+        case SystemState::RUNNING:
+            // 系统运行 - 绿色常亮
+            setState(LEDState::MOTOR_RUNNING);
+            break;
+            
+        case SystemState::PAUSED:
+            // 系统暂停 - 黄色闪烁
+            setState(LEDState::BLE_DISCONNECTED);
+            break;
+            
+        case SystemState::ERROR:
+            // 系统错误 - 紫色快速闪烁
+            setState(LEDState::ERROR_STATE);
+            break;
+            
+        case SystemState::SHUTDOWN:
+            // 系统关机 - 关闭LED
+            stop();
+            break;
+    }
 }

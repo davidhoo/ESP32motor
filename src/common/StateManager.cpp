@@ -3,10 +3,10 @@
 
 // 定义有效的状态转换规则
 const std::map<SystemState, std::vector<SystemState>> StateManager::m_validTransitions = {
-    {SystemState::INIT,     {SystemState::IDLE, SystemState::ERROR}},
-    {SystemState::IDLE,     {SystemState::RUNNING, SystemState::SHUTDOWN, SystemState::ERROR}},
-    {SystemState::RUNNING,  {SystemState::PAUSED, SystemState::IDLE, SystemState::SHUTDOWN, SystemState::ERROR}},
-    {SystemState::PAUSED,   {SystemState::RUNNING, SystemState::IDLE, SystemState::SHUTDOWN, SystemState::ERROR}},
+    {SystemState::INIT,     {SystemState::IDLE, SystemState::ERROR, SystemState::INIT}},
+    {SystemState::IDLE,     {SystemState::RUNNING, SystemState::SHUTDOWN, SystemState::ERROR, SystemState::INIT}},
+    {SystemState::RUNNING,  {SystemState::PAUSED, SystemState::IDLE, SystemState::SHUTDOWN, SystemState::ERROR, SystemState::INIT}},
+    {SystemState::PAUSED,   {SystemState::RUNNING, SystemState::IDLE, SystemState::SHUTDOWN, SystemState::ERROR, SystemState::INIT}},
     {SystemState::ERROR,    {SystemState::INIT, SystemState::SHUTDOWN}},
     {SystemState::SHUTDOWN, {SystemState::INIT}}
 };
@@ -19,6 +19,16 @@ StateManager& StateManager::getInstance() {
 bool StateManager::init() {
     m_currentState = SystemState::INIT;
     
+    // 初始化环形缓冲区
+    m_historyHead = 0;
+    m_historyCount = 0;
+    m_listenerCount = 0;
+    
+    // 初始化监听器有效性标记
+    for (size_t i = 0; i < MAX_LISTENERS; i++) {
+        m_listenerValid[i] = false;
+    }
+    
     // 记录初始状态
     StateChangeEvent initialEvent;
     initialEvent.oldState = SystemState::INIT;
@@ -26,12 +36,7 @@ bool StateManager::init() {
     initialEvent.reason = "System initialization";
     initialEvent.timestamp = millis();
     
-    m_stateHistory.push_back(initialEvent);
-    
-    // 限制历史记录大小
-    if (m_stateHistory.size() > 50) {
-        m_stateHistory.erase(m_stateHistory.begin());
-    }
+    addToHistory(initialEvent);
     
     return true;
 }
@@ -62,12 +67,7 @@ bool StateManager::setState(SystemState newState, const String& reason) {
     m_currentState = newState;
     
     // 记录到历史
-    m_stateHistory.push_back(event);
-    
-    // 限制历史记录大小
-    if (m_stateHistory.size() > 50) {
-        m_stateHistory.erase(m_stateHistory.begin());
-    }
+    addToHistory(event);
     
     // 通知监听器
     notifyStateChange(event);
@@ -113,14 +113,23 @@ StateValidationResult StateManager::validateStateTransition(SystemState fromStat
 }
 
 void StateManager::registerStateListener(std::function<void(const StateChangeEvent&)> listener) {
-    m_listeners.push_back(listener);
+    if (m_listenerCount < MAX_LISTENERS) {
+        m_listeners[m_listenerCount] = listener;
+        m_listenerValid[m_listenerCount] = true;  // 标记为有效
+        m_listenerCount++;
+    } else {
+        Serial.println("[StateManager] Warning: Maximum number of listeners reached");
+    }
 }
 
 void StateManager::unregisterStateListener(std::function<void(const StateChangeEvent&)> listener) {
-    // 注意：由于std::function的限制，这个方法目前只是一个占位符
-    // 在实际使用中，建议使用ID或其他方式来标识监听器
-    // 这里我们简单地清空所有监听器作为临时解决方案
-    Serial.println("[StateManager] Warning: unregisterStateListener is not fully implemented");
+    // 由于std::function无法直接比较，我们清空所有监听器作为安全措施
+    // 这是一个简化的实现，在生产环境中应该使用ID机制
+    for (size_t i = 0; i < m_listenerCount; i++) {
+        m_listenerValid[i] = false;
+    }
+    m_listenerCount = 0;
+    Serial.println("[StateManager] Warning: All listeners have been cleared due to unregister operation");
 }
 
 String StateManager::getStateName(SystemState state) {
@@ -138,24 +147,41 @@ String StateManager::getStateName(SystemState state) {
 std::vector<StateChangeEvent> StateManager::getStateHistory(size_t maxEntries) const {
     std::vector<StateChangeEvent> result;
     
-    size_t startIndex = 0;
-    if (m_stateHistory.size() > maxEntries) {
-        startIndex = m_stateHistory.size() - maxEntries;
-    }
+    size_t entriesToReturn = (maxEntries < m_historyCount) ? maxEntries : m_historyCount;
     
-    for (size_t i = startIndex; i < m_stateHistory.size(); ++i) {
-        result.push_back(m_stateHistory[i]);
+    for (size_t i = 0; i < entriesToReturn; i++) {
+        size_t index = (m_historyHead + m_historyCount - entriesToReturn + i) % MAX_HISTORY_SIZE;
+        result.push_back(m_stateHistory[index]);
     }
     
     return result;
 }
 
+void StateManager::addToHistory(const StateChangeEvent& event) {
+    // 添加到环形缓冲区
+    m_stateHistory[m_historyHead] = event;
+    m_historyHead = (m_historyHead + 1) % MAX_HISTORY_SIZE;
+    
+    if (m_historyCount < MAX_HISTORY_SIZE) {
+        m_historyCount++;
+    }
+}
+
 void StateManager::notifyStateChange(const StateChangeEvent& event) {
-    for (const auto& listener : m_listeners) {
-        try {
-            listener(event);
-        } catch (const std::exception& e) {
-            Serial.printf("[StateManager] Error in state listener: %s\n", e.what());
+    for (size_t i = 0; i < m_listenerCount; i++) {
+        // 检查监听器是否有效
+        if (m_listenerValid[i] && m_listeners[i]) {
+            try {
+                m_listeners[i](event);
+            } catch (const std::exception& e) {
+                Serial.printf("[StateManager] Error in state listener %zu: %s\n", i, e.what());
+                // 标记出错的监听器为无效
+                m_listenerValid[i] = false;
+            } catch (...) {
+                Serial.printf("[StateManager] Unknown error in state listener %zu\n", i);
+                // 标记出错的监听器为无效
+                m_listenerValid[i] = false;
+            }
         }
     }
 }

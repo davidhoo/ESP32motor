@@ -44,7 +44,7 @@ enum TestMode {
 };
 
 // 当前测试模式
-TestMode currentTestMode = STATE_MANAGER_TEST_MODE; // 运行StateManager测试
+TestMode currentTestMode = STATE_MANAGER_TEST_MODE; // 运行StateManager集成测试
 
 // 函数声明
 void runGPIOTests();
@@ -312,9 +312,68 @@ void loop() {
             break;
             
         case STATE_MANAGER_TEST_MODE:
-            // StateManager测试通常在setup中完成，这里只做简单的状态监控
-            delay(5000);
-            LOG_TAG_DEBUG("System", "StateManager测试运行中...");
+            // StateManager集成测试 - 简化版本避免内存问题
+            {
+                static unsigned long lastStateChange = 0;
+                static int currentTestState = 0;
+                static bool testCompleted = false;
+                static bool listenerRegistered = false;
+                
+                StateManager& stateManager = StateManager::getInstance();
+                
+                // 只注册一次监听器
+                if (!listenerRegistered) {
+                    auto simpleListener = [](const StateChangeEvent& event) {
+                        Serial.printf("Simple listener: %s -> %s\n",
+                                    StateManager::getStateName(event.oldState).c_str(),
+                                    StateManager::getStateName(event.newState).c_str());
+                    };
+                    stateManager.registerStateListener(simpleListener);
+                    listenerRegistered = true;
+                }
+                
+                // 每10秒切换一次状态进行集成测试（减少频率）
+                if (!testCompleted && millis() - lastStateChange > 10000) {
+                    lastStateChange = millis();
+                    
+                    switch (currentTestState) {
+                        case 0:
+                            LOG_TAG_INFO("System", "=== StateManager集成测试 ===");
+                            LOG_TAG_INFO("System", "测试: INIT -> IDLE");
+                            stateManager.setState(SystemState::IDLE, "Test1");
+                            break;
+                            
+                        case 1:
+                            LOG_TAG_INFO("System", "测试: IDLE -> RUNNING");
+                            stateManager.setState(SystemState::RUNNING, "Test2");
+                            break;
+                            
+                        case 2:
+                            LOG_TAG_INFO("System", "测试: RUNNING -> IDLE");
+                            stateManager.setState(SystemState::IDLE, "Test3");
+                            break;
+                            
+                        case 3:
+                            LOG_TAG_INFO("System", "=== 测试完成 ===");
+                            testCompleted = true;
+                            break;
+                    }
+                    
+                    currentTestState++;
+                }
+                
+                // 测试完成后每30秒显示一次当前状态
+                if (testCompleted) {
+                    static unsigned long lastStatusUpdate = 0;
+                    if (millis() - lastStatusUpdate > 30000) {
+                        lastStatusUpdate = millis();
+                        LOG_TAG_INFO("System", "当前状态: %s",
+                                   StateManager::getStateName(stateManager.getCurrentState()).c_str());
+                    }
+                }
+                
+                delay(2000);  // 增加延迟减少CPU负载
+            }
             break;
                 
         default:
@@ -558,10 +617,20 @@ void runEventManagerTests() {
  * 运行StateManager测试
  */
 void runStateManagerTests() {
-    LOG_TAG_INFO("System", "开始StateManager测试");
+    LOG_TAG_INFO("System", "开始StateManager集成测试");
     
-    // 运行所有StateManager单元测试
+    // 获取StateManager实例
+    StateManager& stateManager = StateManager::getInstance();
+    
+    LOG_TAG_INFO("System", "初始化StateManager...");
+    stateManager.init();
+    LOG_TAG_INFO("System", "✅ StateManager初始化完成");
+    LOG_TAG_INFO("System", "初始状态: %s", StateManager::getStateName(stateManager.getCurrentState()).c_str());
+    
+    // 运行基础单元测试
+    LOG_TAG_INFO("System", "运行StateManager单元测试...");
     StateManagerTest::runAllTests();
     
-    LOG_TAG_INFO("System", "StateManager测试完成！");
+    LOG_TAG_INFO("System", "StateManager集成测试初始化完成！");
+    LOG_TAG_INFO("System", "将在loop()中进行状态转换测试");
 }

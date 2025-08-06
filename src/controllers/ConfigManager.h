@@ -4,6 +4,7 @@
 #include "../common/Config.h"
 #include "../drivers/NVSStorageDriver.h"
 #include "../common/Logger.h"
+#include "../common/StateManager.h"
 
 /**
  * 配置管理器类
@@ -89,6 +90,12 @@ public:
      * @return 最近一次错误信息
      */
     const char* getLastError() const;
+    
+    /**
+     * @brief 系统状态变更回调
+     * @param event 状态变更事件
+     */
+    void onSystemStateChanged(const StateChangeEvent& event);
 
 private:
     /**
@@ -115,6 +122,7 @@ private:
     MotorConfig defaultConfig;      // 默认配置
     MotorConfig lastSavedConfig;    // 最后保存的配置
     NVSStorageDriver nvsStorage;    // NVS存储驱动
+    StateManager& stateManager;     // 状态管理器引用
     bool isInitialized;             // 是否已初始化
     bool isModified;                // 配置是否已修改
     char lastError[100];            // 最近一次错误信息

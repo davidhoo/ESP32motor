@@ -10,6 +10,10 @@ MotorBLEServer& MotorBLEServer::getInstance() {
     return instance;
 }
 
+// 构造函数
+MotorBLEServer::MotorBLEServer() : stateManager(StateManager::getInstance()) {
+}
+
 // 初始化BLE服务器
 bool MotorBLEServer::init() {
     LOG_INFO("初始化BLE服务器...");
@@ -74,6 +78,11 @@ bool MotorBLEServer::init() {
         pCommandCharacteristic->setValue("{\"command\":\"none\"}");
         pStatusCharacteristic->setValue(generateStatusJson().c_str());
         pInfoCharacteristic->setValue(generateInfoJson().c_str());
+        
+        // 注册系统状态变更监听器
+        stateManager.registerStateListener([this](const StateChangeEvent& event) {
+            this->onSystemStateChanged(event);
+        });
         
         LOG_INFO("BLE服务器初始化成功");
         return true;
@@ -311,4 +320,28 @@ void MotorBLEServer::setError(const char* error) {
     strncpy(lastError, error, sizeof(lastError) - 1);
     lastError[sizeof(lastError) - 1] = '\0';
     LOG_ERROR("BLE错误: %s", error);
+}
+
+// 系统状态变更回调
+void MotorBLEServer::onSystemStateChanged(const StateChangeEvent& event) {
+    LOG_INFO("BLE服务器收到系统状态变更: %s -> %s",
+             StateManager::getStateName(event.oldState).c_str(),
+             StateManager::getStateName(event.newState).c_str());
+    
+    // 如果有客户端连接，立即发送状态更新
+    if (isConnected()) {
+        String statusJson = generateStatusJson();
+        sendStatusNotification(statusJson);
+        
+        // 同时更新系统状态信息到状态JSON中
+        DynamicJsonDocument doc(512);
+        deserializeJson(doc, statusJson);
+        doc["systemState"] = StateManager::getStateName(event.newState);
+        doc["systemStateReason"] = event.reason;
+        doc["systemStateTimestamp"] = event.timestamp;
+        
+        String updatedJson;
+        serializeJson(doc, updatedJson);
+        sendStatusNotification(updatedJson);
+    }
 }

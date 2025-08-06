@@ -8,7 +8,7 @@ MotorController& MotorController::getInstance() {
 }
 
 // 构造函数
-MotorController::MotorController() 
+MotorController::MotorController()
     : currentState(MotorControllerState::STOPPED)
     , timer(TimerDriver::getInstance())
     , gpioDriver(nullptr)
@@ -17,7 +17,8 @@ MotorController::MotorController()
     , remainingStopTime(0)
     , cycleCount(0)
     , isInitialized(false)
-    , configUpdated(false) {
+    , configUpdated(false)
+    , stateManager(StateManager::getInstance()) {
     
     memset(lastError, 0, sizeof(lastError));
     
@@ -61,6 +62,11 @@ bool MotorController::init() {
     
     isInitialized = true;
     setState(MotorControllerState::STOPPED);
+    
+    // 注册系统状态变更监听器
+    stateManager.registerStateListener([this](const StateChangeEvent& event) {
+        this->onSystemStateChanged(event);
+    });
     
     LOG_TAG_INFO("MotorController", "电机控制器初始化成功");
     return true;
@@ -237,10 +243,13 @@ void MotorController::updateConfig(const MotorConfig& config) {
 // 设置状态
 void MotorController::setState(MotorControllerState newState) {
     if (currentState != newState) {
-        LOG_TAG_INFO("MotorController", "状态切换: %d -> %d", 
+        LOG_TAG_INFO("MotorController", "状态切换: %d -> %d",
                      static_cast<int>(currentState), static_cast<int>(newState));
         currentState = newState;
         stateStartTime = millis();
+        
+        // 更新系统状态
+        updateSystemState();
     }
 }
 
@@ -295,4 +304,81 @@ bool MotorController::isStopped() const {
 // 获取错误信息
 const char* MotorController::getLastError() const {
     return lastError;
+}
+
+// 系统状态变更回调
+void MotorController::onSystemStateChanged(const StateChangeEvent& event) {
+    LOG_TAG_INFO("MotorController", "系统状态变更: %s -> %s",
+                 StateManager::getStateName(event.oldState).c_str(),
+                 StateManager::getStateName(event.newState).c_str());
+    
+    // 根据系统状态调整电机行为
+    switch (event.newState) {
+        case SystemState::INIT:
+            // 系统初始化时，确保电机停止
+            if (currentState != MotorControllerState::STOPPED) {
+                stopMotor();
+            }
+            break;
+            
+        case SystemState::IDLE:
+            // 系统空闲时，电机可以启动或停止
+            break;
+            
+        case SystemState::RUNNING:
+            // 系统运行时，如果配置了自动启动，则启动电机
+            if (currentConfig.autoStart && currentState == MotorControllerState::STOPPED) {
+                startMotor();
+            }
+            break;
+            
+        case SystemState::PAUSED:
+            // 系统暂停时，暂停电机运行
+            if (currentState == MotorControllerState::RUNNING) {
+                stopMotor();
+            }
+            break;
+            
+        case SystemState::ERROR:
+            // 系统错误时，立即停止电机
+            stopMotor();
+            setState(MotorControllerState::ERROR_STATE);
+            break;
+            
+        case SystemState::SHUTDOWN:
+            // 系统关机时，停止电机
+            stopMotor();
+            break;
+    }
+}
+
+// 更新系统状态
+void MotorController::updateSystemState() {
+    SystemState currentSystemState = stateManager.getCurrentState();
+    
+    // 根据电机状态更新系统状态
+    switch (currentState) {
+        case MotorControllerState::STOPPED:
+            if (currentSystemState == SystemState::RUNNING) {
+                stateManager.setState(SystemState::IDLE, "电机已停止");
+            }
+            break;
+            
+        case MotorControllerState::RUNNING:
+            if (currentSystemState == SystemState::IDLE) {
+                stateManager.setState(SystemState::RUNNING, "电机开始运行");
+            }
+            break;
+            
+        case MotorControllerState::ERROR_STATE:
+            if (currentSystemState != SystemState::ERROR) {
+                stateManager.setState(SystemState::ERROR, "电机控制器错误");
+            }
+            break;
+            
+        case MotorControllerState::STARTING:
+        case MotorControllerState::STOPPING:
+            // 过渡状态，不改变系统状态
+            break;
+    }
 }

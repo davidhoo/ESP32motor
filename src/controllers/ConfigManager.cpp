@@ -13,7 +13,8 @@ ConfigManager& ConfigManager::getInstance() {
 /**
  * 构造函数
  */
-ConfigManager::ConfigManager() : 
+ConfigManager::ConfigManager() :
+    stateManager(StateManager::getInstance()),
     isInitialized(false),
     isModified(false) {
     memset(lastError, 0, sizeof(lastError));
@@ -57,6 +58,11 @@ bool ConfigManager::init() {
         LOG_TAG_WARN("ConfigManager", "加载配置失败，使用默认配置");
         resetToDefaults();
     }
+    
+    // 注册系统状态变更监听器
+    stateManager.registerStateListener([this](const StateChangeEvent& event) {
+        this->onSystemStateChanged(event);
+    });
     
     LOG_TAG_INFO("ConfigManager", "配置管理器初始化成功");
     return true;
@@ -186,8 +192,19 @@ const MotorConfig& ConfigManager::getConfig() const {
  */
 void ConfigManager::updateConfig(const MotorConfig& config) {
     if (validateConfig(config)) {
+        MotorConfig oldConfig = currentConfig;
         currentConfig = config;
         isModified = true;
+        
+        // 如果配置发生重要变化，通知系统状态
+        if (oldConfig.autoStart != config.autoStart) {
+            if (config.autoStart) {
+                // 如果启用了自动启动，且系统处于空闲状态，切换到运行状态
+                if (stateManager.getCurrentState() == SystemState::IDLE) {
+                    stateManager.setState(SystemState::RUNNING, "配置启用自动启动");
+                }
+            }
+        }
         
         LOG_TAG_INFO("ConfigManager", "配置已更新");
     } else {
@@ -272,5 +289,55 @@ void ConfigManager::setValidationError(const char* error) {
         validationError[sizeof(validationError) - 1] = '\0';
     } else {
         memset(validationError, 0, sizeof(validationError));
+    }
+}
+
+// 系统状态变更回调
+void ConfigManager::onSystemStateChanged(const StateChangeEvent& event) {
+    LOG_TAG_INFO("ConfigManager", "系统状态变更: %s -> %s",
+                 StateManager::getStateName(event.oldState).c_str(),
+                 StateManager::getStateName(event.newState).c_str());
+    
+    // 根据系统状态调整配置行为
+    switch (event.newState) {
+        case SystemState::INIT:
+            // 系统初始化时，确保配置已加载
+            if (!isInitialized) {
+                LOG_TAG_WARN("ConfigManager", "系统初始化时配置管理器未初始化");
+            }
+            break;
+            
+        case SystemState::IDLE:
+            // 系统空闲时，可以保存配置更改
+            if (isModified) {
+                LOG_TAG_INFO("ConfigManager", "系统空闲时自动保存配置更改");
+                saveConfig();
+            }
+            break;
+            
+        case SystemState::RUNNING:
+            // 系统运行时，配置更改应该立即生效
+            break;
+            
+        case SystemState::PAUSED:
+            // 系统暂停时，保存当前配置状态
+            if (isModified) {
+                LOG_TAG_INFO("ConfigManager", "系统暂停时保存配置");
+                saveConfig();
+            }
+            break;
+            
+        case SystemState::ERROR:
+            // 系统错误时，可能需要重置配置
+            LOG_TAG_WARN("ConfigManager", "系统错误状态，配置管理器待命");
+            break;
+            
+        case SystemState::SHUTDOWN:
+            // 系统关机时，确保配置已保存
+            if (isModified) {
+                LOG_TAG_INFO("ConfigManager", "系统关机前保存配置");
+                saveConfig();
+            }
+            break;
     }
 }

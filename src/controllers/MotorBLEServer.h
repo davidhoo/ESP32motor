@@ -8,6 +8,7 @@
 #include <BLE2902.h>
 #include <ArduinoJson.h>
 #include "../common/Logger.h"
+#include "../common/StateManager.h"
 #include "../controllers/MotorController.h"
 #include "../controllers/ConfigManager.h"
 
@@ -67,10 +68,11 @@ public:
     void handleCommandWrite(const String& value);
     String generateStatusJson();
     String generateInfoJson();
+    void onSystemStateChanged(const StateChangeEvent& event);
 
 private:
     // 单例模式
-    MotorBLEServer() = default;
+    MotorBLEServer();
     MotorBLEServer(const MotorBLEServer&) = delete;
     MotorBLEServer& operator=(const MotorBLEServer&) = delete;
     
@@ -86,6 +88,9 @@ private:
     bool deviceConnected = false;
     bool oldDeviceConnected = false;
     char lastError[128] = "";
+    
+    // StateManager引用
+    StateManager& stateManager;
     
     // UUID定义
     static constexpr const char* SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
