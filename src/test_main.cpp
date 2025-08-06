@@ -16,6 +16,7 @@
 #include "tests/MotorControllerTest.h"
 #include "controllers/MotorBLEServer.h"
 #include "tests/MotorBLEServerTest.h"
+#include "tests/EventManagerTest.h"
 
 // 全局对象
 GPIODriver gpioDriver;
@@ -36,11 +37,12 @@ enum TestMode {
     LED_CONTROLLER_TEST_MODE = 5,
     CONFIG_MANAGER_TEST_MODE = 6,
     MOTOR_CONTROLLER_TEST_MODE = 7,
-    BLE_SERVER_TEST_MODE = 8
+    BLE_SERVER_TEST_MODE = 8,
+    EVENT_MANAGER_TEST_MODE = 9
 };
 
 // 当前测试模式
-TestMode currentTestMode = BLE_SERVER_TEST_MODE; // 运行BLE服务器测试
+TestMode currentTestMode = EVENT_MANAGER_TEST_MODE; // 运行EventManager测试
 
 // 函数声明
 void runGPIOTests();
@@ -52,6 +54,7 @@ void runLEDControllerTests();
 void runConfigManagerTests();
 void runMotorControllerTests();
 void runBLEServerTests();
+void runEventManagerTests();
 
 void setup() {
     // 初始化串口
@@ -121,6 +124,11 @@ void setup() {
         case BLE_SERVER_TEST_MODE:
             LOG_TAG_INFO("System", "运行模式: BLE服务器测试");
             runBLEServerTests();
+            break;
+            
+        case EVENT_MANAGER_TEST_MODE:
+            LOG_TAG_INFO("System", "运行模式: EventManager测试");
+            runEventManagerTests();
             break;
             
         default:
@@ -287,6 +295,12 @@ void loop() {
             bleServer.update();
             delay(100);
         }
+            break;
+                
+        case EVENT_MANAGER_TEST_MODE:
+            // EventManager测试通常在setup中完成，这里只做简单的状态监控
+            delay(5000);
+            LOG_TAG_DEBUG("System", "EventManager测试运行中...");
             break;
                 
         default:
@@ -512,4 +526,16 @@ void runBLEServerTests() {
     
     LOG_TAG_INFO("System", "BLE服务器测试完成！");
     LOG_TAG_INFO("System", "将在loop()中持续更新BLE状态");
+}
+
+/**
+ * 运行EventManager测试
+ */
+void runEventManagerTests() {
+    LOG_TAG_INFO("System", "开始EventManager测试");
+    
+    // 运行所有EventManager单元测试
+    EventManagerTest::runAllTests();
+    
+    LOG_TAG_INFO("System", "EventManager测试完成！");
 }
