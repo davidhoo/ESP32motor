@@ -11,6 +11,8 @@
 #include "tests/NVSStorageTest.h"
 #include "controllers/LEDController.h"
 #include "tests/LEDControllerTest.h"
+#include "controllers/ConfigManager.h"
+#include "tests/ConfigManagerTest.h"
 
 // 全局对象
 GPIODriver gpioDriver;
@@ -28,11 +30,12 @@ enum TestMode {
     COMBINED_TEST_MODE = 2,
     WS2812_TEST_MODE = 3,
     NVS_STORAGE_TEST_MODE = 4,
-    LED_CONTROLLER_TEST_MODE = 5
+    LED_CONTROLLER_TEST_MODE = 5,
+    CONFIG_MANAGER_TEST_MODE = 6
 };
 
 // 当前测试模式
-TestMode currentTestMode = LED_CONTROLLER_TEST_MODE; // 默认运行LED控制器测试
+TestMode currentTestMode = CONFIG_MANAGER_TEST_MODE; // 默认运行ConfigManager测试
 
 // 函数声明
 void runGPIOTests();
@@ -41,6 +44,7 @@ void runCombinedTests();
 void runWS2812Tests();
 void runNVSStorageTests();
 void runLEDControllerTests();
+void runConfigManagerTests();
 
 void setup() {
     // 初始化串口
@@ -94,6 +98,11 @@ void setup() {
         case LED_CONTROLLER_TEST_MODE:
             LOG_TAG_INFO("System", "运行模式: LED控制器测试");
             runLEDControllerTests();
+            break;
+            
+        case CONFIG_MANAGER_TEST_MODE:
+            LOG_TAG_INFO("System", "运行模式: ConfigManager测试");
+            runConfigManagerTests();
             break;
             
         default:
@@ -182,6 +191,12 @@ void loop() {
                 ledController.update();
                 delay(100);
             }
+            break;
+            
+        case CONFIG_MANAGER_TEST_MODE:
+            // ConfigManager测试通常在setup中完成，这里只做简单的状态监控
+            delay(5000);
+            LOG_TAG_DEBUG("System", "ConfigManager测试运行中...");
             break;
     }
 }
@@ -325,4 +340,28 @@ void runLEDControllerTests() {
     LOG_TAG_INFO("System", "将在loop()中每5秒切换一次LED状态");
     
     LOG_TAG_INFO("System", "LED控制器测试完成");
+}
+
+/**
+ * 运行ConfigManager测试
+ */
+void runConfigManagerTests() {
+    LOG_TAG_INFO("System", "开始ConfigManager测试");
+    
+    // 获取配置管理器实例
+    ConfigManager& configManager = ConfigManager::getInstance();
+    
+    LOG_TAG_INFO("System", "初始化配置管理器...");
+    if (configManager.init()) {
+        LOG_TAG_INFO("System", "✅ 配置管理器初始化成功");
+    } else {
+        LOG_TAG_ERROR("System", "❌ 配置管理器初始化失败");
+        LOG_TAG_ERROR("System", "错误: %s", configManager.getLastError());
+        return;
+    }
+    
+    LOG_TAG_INFO("System", "运行ConfigManager单元测试...");
+    ConfigManagerTest::runAllTests();
+    
+    LOG_TAG_INFO("System", "ConfigManager测试完成！");
 }
