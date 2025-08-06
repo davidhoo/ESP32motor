@@ -5,6 +5,7 @@
 #include "LEDController.h"
 #include "ConfigManager.h"
 #include "MotorBLEServer.h"
+#include "../common/EventManager.h"
 
 /**
  * @brief 主控制器类 - 系统核心管理器
@@ -100,6 +101,14 @@ private:
     bool ledControllerInitialized;
     bool configManagerInitialized;
     bool bleServerInitialized;
+    
+    // 事件系统相关
+    bool initializeEventManager();
+    void setupEventListeners();
+    void handleSystemEvent(const EventData& event);
+    void handleMotorEvent(const EventData& event);
+    void handleBLEEvent(const EventData& event);
+    void handleConfigEvent(const EventData& event);
 };
 
 #endif // MAIN_CONTROLLER_H
