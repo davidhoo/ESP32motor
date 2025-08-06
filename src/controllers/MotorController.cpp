@@ -162,8 +162,9 @@ void MotorController::handleStoppedState() {
     
     // 处理停止间隔为0的持续运行模式
     if (currentConfig.stopDuration == 0) {
-        LOG_TAG_INFO("MotorController", "持续运行模式，立即启动下一个周期");
-        setState(MotorControllerState::STARTING);
+        LOG_TAG_INFO("MotorController", "持续运行模式，跳过停止间隔");
+        // 直接完成当前停止状态，不经过STARTING状态
+        setState(MotorControllerState::RUNNING);
         return;
     }
     
@@ -210,11 +211,16 @@ void MotorController::handleRunningState() {
         // 检查是否需要继续循环
         if (currentConfig.cycleCount > 0 && cycleCount >= currentConfig.cycleCount) {
             LOG_TAG_INFO("MotorController", "所有循环已完成，停止电机");
+            setState(MotorControllerState::STOPPING);
+        } else if (currentConfig.stopDuration == 0) {
+            // 持续运行模式，直接开始下一个周期
+            LOG_TAG_INFO("MotorController", "持续运行模式，直接开始下一个运行周期");
+            remainingRunTime = 0; // 重置运行时间
+            setState(MotorControllerState::RUNNING); // 保持在运行状态
         } else {
             LOG_TAG_INFO("MotorController", "准备进入停止间隔");
+            setState(MotorControllerState::STOPPING);
         }
-        
-        setState(MotorControllerState::STOPPING);
     } else {
         // 更新剩余运行时间
         remainingRunTime = currentConfig.runDuration - elapsed;
