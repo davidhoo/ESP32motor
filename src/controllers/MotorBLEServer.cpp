@@ -78,11 +78,17 @@ bool MotorBLEServer::init() {
         );
         pStatusQueryCharacteristic->setCallbacks(new CharacteristicCallbacks(this, STATUS_QUERY_CHAR_UUID));
         
-        // 设置初始值
-        pRunDurationCharacteristic->setValue("0");
-        pStopIntervalCharacteristic->setValue("0");
-        pSystemControlCharacteristic->setValue("0");
+        // 设置初始值 - 从ConfigManager获取实际配置值
+        ConfigManager& configManager = ConfigManager::getInstance();
+        MotorConfig config = configManager.getConfig();
+        
+        pRunDurationCharacteristic->setValue(String(config.runDuration).c_str());
+        pStopIntervalCharacteristic->setValue(String(config.stopDuration).c_str());
+        pSystemControlCharacteristic->setValue("0");  // 系统控制初始为停止状态
         pStatusQueryCharacteristic->setValue(generateStatusJson().c_str());
+        
+        LOG_INFO("BLE特征值已初始化 - 运行时长: %lu秒, 停止间隔: %lu秒",
+                 config.runDuration, config.stopDuration);
         
         // 注册系统状态变更监听器
         stateManager.registerStateListener([this](const StateChangeEvent& event) {
@@ -220,7 +226,19 @@ void MotorBLEServer::CharacteristicCallbacks::onWrite(BLECharacteristic* pCharac
 }
 
 void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharacteristic) {
-    if (strcmp(charUUID, STATUS_QUERY_CHAR_UUID) == 0) {
+    if (strcmp(charUUID, RUN_DURATION_CHAR_UUID) == 0) {
+        ConfigManager& configManager = ConfigManager::getInstance();
+        MotorConfig config = configManager.getConfig();
+        pCharacteristic->setValue(String(config.runDuration).c_str());
+    } else if (strcmp(charUUID, STOP_INTERVAL_CHAR_UUID) == 0) {
+        ConfigManager& configManager = ConfigManager::getInstance();
+        MotorConfig config = configManager.getConfig();
+        pCharacteristic->setValue(String(config.stopDuration).c_str());
+    } else if (strcmp(charUUID, SYSTEM_CONTROL_CHAR_UUID) == 0) {
+        MotorController& motorController = MotorController::getInstance();
+        String controlValue = (motorController.getCurrentState() == MotorControllerState::RUNNING) ? "1" : "0";
+        pCharacteristic->setValue(controlValue.c_str());
+    } else if (strcmp(charUUID, STATUS_QUERY_CHAR_UUID) == 0) {
         String statusJson = bleServer->generateStatusJson();
         pCharacteristic->setValue(statusJson.c_str());
     }
@@ -248,6 +266,11 @@ void MotorBLEServer::handleRunDurationWrite(const String& value) {
         motorController.updateConfig(currentConfig);
         
         LOG_INFO("运行时长已更新: %u 秒", runDuration);
+        
+        // 更新BLE特征值
+        if (pRunDurationCharacteristic) {
+            pRunDurationCharacteristic->setValue(String(runDuration).c_str());
+        }
         
         // 立即推送更新后的状态
         if (this->isConnected()) {
@@ -280,6 +303,11 @@ void MotorBLEServer::handleStopIntervalWrite(const String& value) {
         motorController.updateConfig(currentConfig);
         
         LOG_INFO("停止间隔已更新: %u 秒", stopInterval);
+        
+        // 更新BLE特征值
+        if (pStopIntervalCharacteristic) {
+            pStopIntervalCharacteristic->setValue(String(stopInterval).c_str());
+        }
         
         // 立即推送更新后的状态
         if (this->isConnected()) {
