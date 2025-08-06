@@ -296,8 +296,8 @@ void MotorBLEServer::handleRunDurationWrite(const String& value) {
 void MotorBLEServer::handleStopIntervalWrite(const String& value) {
     try {
         uint32_t stopInterval = atoi(value.c_str());
-        if (stopInterval < 1 || stopInterval > 999) {
-            LOG_ERROR("停止间隔超出范围: %u (有效范围: 1-999秒)", stopInterval);
+        if (stopInterval > 999) {
+            LOG_ERROR("停止间隔超出范围: %u (有效范围: 0-999秒)", stopInterval);
             return;
         }
         

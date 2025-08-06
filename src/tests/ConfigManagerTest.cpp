@@ -215,7 +215,7 @@ void ConfigManagerTest::testBoundaryValues() {
     
     // 最小有效值
     boundaryConfig.runDuration = 1;
-    boundaryConfig.stopDuration = 1;
+    boundaryConfig.stopDuration = 0;
     boundaryConfig.cycleCount = 0;
     assertTrue(manager.validateConfig(boundaryConfig), "最小边界值应该有效");
     

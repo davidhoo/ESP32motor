@@ -248,8 +248,8 @@ bool ConfigManager::validateConfig(const MotorConfig& config) const {
     }
     
     // 验证停止时长
-    if (config.stopDuration < 1 || config.stopDuration > 999) {  // 1-999秒
-        const_cast<ConfigManager*>(this)->setValidationError("停止时长必须在1秒到999秒之间");
+    if (config.stopDuration > 999) {  // 0-999秒
+        const_cast<ConfigManager*>(this)->setValidationError("停止时长必须在0秒到999秒之间");
         return false;
     }
     
@@ -388,11 +388,7 @@ bool ConfigManager::validateAndSanitizeConfig(MotorConfig& config) const {
     }
     
     // 修正停止时长
-    if (config.stopDuration < 1) {
-        corrections += "停止时长过小，已修正为1秒; ";
-        config.stopDuration = 1;
-        wasModified = true;
-    } else if (config.stopDuration > 999) {
+    if (config.stopDuration > 999) {
         corrections += "停止时长过大，已修正为999秒; ";
         config.stopDuration = 999;
         wasModified = true;
