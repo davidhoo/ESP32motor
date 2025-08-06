@@ -4,6 +4,7 @@
 #include "../drivers/WS2812Driver.h"
 #include "../drivers/TimerDriver.h"
 #include "../common/Logger.h"
+#include <memory>
 
 /**
  * @brief LED状态枚举
@@ -24,13 +25,13 @@ enum class LEDState {
  */
 class LEDController {
 private:
-    WS2812Driver* ws2812;           // WS2812驱动指针
-    TimerDriver& timer;             // 定时器驱动引用
-    LEDState currentState;          // 当前LED状态
-    bool isBlinking;                // 是否正在闪烁
-    bool ledOn;                     // LED当前开关状态
-    uint8_t blinkCount;             // 闪烁计数器
-    uint8_t maxBlinkCount;          // 最大闪烁次数(0表示无限)
+    std::unique_ptr<WS2812Driver> ws2812;  // WS2812驱动智能指针
+    TimerDriver& timer;                    // 定时器驱动引用
+    LEDState currentState;                 // 当前LED状态
+    bool isBlinking;                       // 是否正在闪烁
+    bool ledOn;                            // LED当前开关状态
+    uint8_t blinkCount;                    // 闪烁计数器
+    uint8_t maxBlinkCount;                 // 最大闪烁次数(0表示无限)
     
     // 颜色定义
     static const uint8_t COLOR_BLUE[3];      // 蓝色
