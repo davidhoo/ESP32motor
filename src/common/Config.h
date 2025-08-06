@@ -26,8 +26,8 @@
 #define LED_BRIGHTNESS 50     // LED亮度 (0-255)
 
 // 电机控制配置
-#define MOTOR_ON HIGH         // 电机开启电平
-#define MOTOR_OFF LOW         // 电机关闭电平
+#define MOTOR_ON  LOW        // 电机开启电平（低电平启动）
+#define MOTOR_OFF HIGH         // 电机关闭电平（默认高电平）
 
 // 日志配置
 #define LOG_BUFFER_SIZE 512       // 日志缓冲区大小
