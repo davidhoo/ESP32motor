@@ -2,7 +2,6 @@
 #include "common/Config.h"
 #include "common/Logger.h"
 #include "drivers/GPIODriver.h"
-#include "drivers/TimerDriver.h"
 #include "tests/GPIOTest.h"
 #include "tests/TimerTest.h"
 #include "drivers/WS2812Driver.h"
@@ -13,6 +12,8 @@
 #include "tests/LEDControllerTest.h"
 #include "controllers/ConfigManager.h"
 #include "tests/ConfigManagerTest.h"
+#include "controllers/MotorController.h"
+#include "tests/MotorControllerTest.h"
 
 // 全局对象
 GPIODriver gpioDriver;
@@ -31,11 +32,12 @@ enum TestMode {
     WS2812_TEST_MODE = 3,
     NVS_STORAGE_TEST_MODE = 4,
     LED_CONTROLLER_TEST_MODE = 5,
-    CONFIG_MANAGER_TEST_MODE = 6
+    CONFIG_MANAGER_TEST_MODE = 6,
+    MOTOR_CONTROLLER_TEST_MODE = 7
 };
 
 // 当前测试模式
-TestMode currentTestMode = CONFIG_MANAGER_TEST_MODE; // 默认运行ConfigManager测试
+TestMode currentTestMode = MOTOR_CONTROLLER_TEST_MODE; // 默认运行MotorController测试
 
 // 函数声明
 void runGPIOTests();
@@ -45,6 +47,7 @@ void runWS2812Tests();
 void runNVSStorageTests();
 void runLEDControllerTests();
 void runConfigManagerTests();
+void runMotorControllerTests();
 
 void setup() {
     // 初始化串口
@@ -105,6 +108,11 @@ void setup() {
             runConfigManagerTests();
             break;
             
+        case MOTOR_CONTROLLER_TEST_MODE:
+            LOG_TAG_INFO("System", "运行模式: MotorController测试");
+            runMotorControllerTests();
+            break;
+            
         default:
             LOG_TAG_ERROR("System", "未知的测试模式");
             break;
@@ -130,10 +138,6 @@ void loop() {
             // 运行综合测试
             gpioTest.runLoopTest();
             delay(100);
-            break;
-            
-        default:
-            delay(1000);
             break;
             
         case WS2812_TEST_MODE:
@@ -197,6 +201,49 @@ void loop() {
             // ConfigManager测试通常在setup中完成，这里只做简单的状态监控
             delay(5000);
             LOG_TAG_DEBUG("System", "ConfigManager测试运行中...");
+            break;
+            
+        case MOTOR_CONTROLLER_TEST_MODE:
+            // 电机控制器测试需要持续更新
+            {
+                static unsigned long lastUpdate = 0;
+                static bool motorStarted = false;
+                
+                MotorController& motorController = MotorController::getInstance();
+                
+                // 每1秒更新一次状态
+                if (millis() - lastUpdate > 1000) {
+                    lastUpdate = millis();
+                    
+                    // 显示当前状态
+                    MotorControllerState state = motorController.getCurrentState();
+                    uint32_t runTime = motorController.getRemainingRunTime();
+                    uint32_t stopTime = motorController.getRemainingStopTime();
+                    uint32_t cycles = motorController.getCurrentCycleCount();
+                    
+                    LOG_TAG_INFO("System", "电机状态: %d, 剩余运行: %us, 剩余停止: %us, 循环次数: %lu",
+                                 static_cast<int>(state), runTime, stopTime, cycles);
+                }
+                
+                // 每10秒启动/停止一次电机
+                if (millis() % 10000 == 0 && !motorStarted) {
+                    LOG_TAG_INFO("System", "启动电机...");
+                    motorController.startMotor();
+                    motorStarted = true;
+                } else if (millis() % 10000 == 5000 && motorStarted) {
+                    LOG_TAG_INFO("System", "停止电机...");
+                    motorController.stopMotor();
+                    motorStarted = false;
+                }
+                
+                // 更新电机控制器
+                motorController.update();
+                delay(100);
+            }
+            break;
+            
+        default:
+            delay(1000);
             break;
     }
 }
@@ -364,4 +411,29 @@ void runConfigManagerTests() {
     ConfigManagerTest::runAllTests();
     
     LOG_TAG_INFO("System", "ConfigManager测试完成！");
+}
+
+/**
+ * 运行MotorController测试
+ */
+void runMotorControllerTests() {
+    LOG_TAG_INFO("System", "开始MotorController测试");
+    
+    // 获取电机控制器实例
+    MotorController& motorController = MotorController::getInstance();
+    
+    LOG_TAG_INFO("System", "初始化电机控制器...");
+    if (motorController.init()) {
+        LOG_TAG_INFO("System", "✅ 电机控制器初始化成功");
+    } else {
+        LOG_TAG_ERROR("System", "❌ 电机控制器初始化失败");
+        LOG_TAG_ERROR("System", "错误: %s", motorController.getLastError());
+        return;
+    }
+    
+    LOG_TAG_INFO("System", "运行MotorController单元测试...");
+    MotorControllerTest::runAllTests();
+    
+    LOG_TAG_INFO("System", "MotorController测试完成！");
+    LOG_TAG_INFO("System", "将在loop()中每10秒启动/停止一次电机进行循环测试");
 }
