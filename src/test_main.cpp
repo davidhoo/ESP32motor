@@ -17,6 +17,7 @@
 #include "controllers/MotorBLEServer.h"
 #include "tests/MotorBLEServerTest.h"
 #include "tests/EventManagerTest.h"
+#include "tests/StateManagerTest.h"
 
 // 全局对象
 GPIODriver gpioDriver;
@@ -38,11 +39,12 @@ enum TestMode {
     CONFIG_MANAGER_TEST_MODE = 6,
     MOTOR_CONTROLLER_TEST_MODE = 7,
     BLE_SERVER_TEST_MODE = 8,
-    EVENT_MANAGER_TEST_MODE = 9
+    EVENT_MANAGER_TEST_MODE = 9,
+    STATE_MANAGER_TEST_MODE = 10
 };
 
 // 当前测试模式
-TestMode currentTestMode = EVENT_MANAGER_TEST_MODE; // 运行EventManager测试
+TestMode currentTestMode = STATE_MANAGER_TEST_MODE; // 运行StateManager测试
 
 // 函数声明
 void runGPIOTests();
@@ -55,6 +57,7 @@ void runConfigManagerTests();
 void runMotorControllerTests();
 void runBLEServerTests();
 void runEventManagerTests();
+void runStateManagerTests();
 
 void setup() {
     // 初始化串口
@@ -129,6 +132,11 @@ void setup() {
         case EVENT_MANAGER_TEST_MODE:
             LOG_TAG_INFO("System", "运行模式: EventManager测试");
             runEventManagerTests();
+            break;
+            
+        case STATE_MANAGER_TEST_MODE:
+            LOG_TAG_INFO("System", "运行模式: StateManager测试");
+            runStateManagerTests();
             break;
             
         default:
@@ -301,6 +309,12 @@ void loop() {
             // EventManager测试通常在setup中完成，这里只做简单的状态监控
             delay(5000);
             LOG_TAG_DEBUG("System", "EventManager测试运行中...");
+            break;
+            
+        case STATE_MANAGER_TEST_MODE:
+            // StateManager测试通常在setup中完成，这里只做简单的状态监控
+            delay(5000);
+            LOG_TAG_DEBUG("System", "StateManager测试运行中...");
             break;
                 
         default:
@@ -538,4 +552,16 @@ void runEventManagerTests() {
     EventManagerTest::runAllTests();
     
     LOG_TAG_INFO("System", "EventManager测试完成！");
+}
+
+/**
+ * 运行StateManager测试
+ */
+void runStateManagerTests() {
+    LOG_TAG_INFO("System", "开始StateManager测试");
+    
+    // 运行所有StateManager单元测试
+    StateManagerTest::runAllTests();
+    
+    LOG_TAG_INFO("System", "StateManager测试完成！");
 }
