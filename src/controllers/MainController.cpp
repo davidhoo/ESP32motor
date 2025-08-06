@@ -34,7 +34,7 @@ bool MainController::init() {
         return true;
     }
     
-    Logger::getInstance().info("MainController", "开始系统初始化...");
+    Logger::getInstance().info("MainController", "开始系统启动流程...");
     
     // 初始化日志系统配置
     LoggerConfig logConfig;
@@ -52,49 +52,84 @@ bool MainController::init() {
     Logger::getInstance().info("MainController", "编译时间: " __DATE__ " " __TIME__);
     Logger::getInstance().info("MainController", "生产环境模式");
     
-    // 按照依赖顺序初始化模块
-    // 0. 事件管理器 - 最先初始化，其他模块可能使用事件系统
-    if (!initializeEventManager()) {
-        Logger::getInstance().error("MainController", "事件管理器初始化失败");
-        cleanup();
-        return false;
-    }
-    
-    // 1. 配置管理器 - 其他模块依赖配置
-    if (!initializeConfigManager()) {
-        Logger::getInstance().error("MainController", "配置管理器初始化失败");
-        cleanup();
-        return false;
-    }
-    
-    // 2. LED控制器 - 提供系统状态指示
+    // === 5.1 系统启动流程实现 ===
+    // 步骤1: LED初始化指示
+    Logger::getInstance().info("MainController", "步骤1: 初始化LED指示系统...");
     if (!initializeLEDController()) {
         Logger::getInstance().error("MainController", "LED控制器初始化失败");
         cleanup();
         return false;
     }
+    // 设置系统初始化LED指示（蓝色闪烁）
+    ledController.setState(LEDState::SYSTEM_INIT);
+    delay(500); // 短暂延时让用户看到LED指示
     
-    // 3. 电机控制器 - 核心功能模块
+    // 步骤2: 初始化事件管理器
+    Logger::getInstance().info("MainController", "步骤2: 初始化事件管理器...");
+    if (!initializeEventManager()) {
+        Logger::getInstance().error("MainController", "事件管理器初始化失败");
+        if (ledControllerInitialized) {
+            ledController.setState(LEDState::ERROR_STATE);
+        }
+        cleanup();
+        return false;
+    }
+    
+    // 步骤3: NVS参数加载
+    Logger::getInstance().info("MainController", "步骤3: 加载NVS配置参数...");
+    if (!initializeConfigManager()) {
+        Logger::getInstance().error("MainController", "配置管理器初始化失败");
+        if (ledControllerInitialized) {
+            ledController.setState(LEDState::ERROR_STATE);
+        }
+        cleanup();
+        return false;
+    }
+    Logger::getInstance().info("MainController", "NVS配置参数加载完成");
+    
+    // 步骤4: 初始化电机控制器
+    Logger::getInstance().info("MainController", "步骤4: 初始化电机控制器...");
     if (!initializeMotorController()) {
         Logger::getInstance().error("MainController", "电机控制器初始化失败");
+        if (ledControllerInitialized) {
+            ledController.setState(LEDState::ERROR_STATE);
+        }
         cleanup();
         return false;
     }
     
-    // 4. BLE服务器 - 通信模块
+    // 步骤5: BLE服务启动
+    Logger::getInstance().info("MainController", "步骤5: 启动BLE服务...");
     if (!initializeBLEServer()) {
         Logger::getInstance().error("MainController", "BLE服务器初始化失败");
+        if (ledControllerInitialized) {
+            ledController.setState(LEDState::ERROR_STATE);
+        }
         cleanup();
         return false;
     }
+    Logger::getInstance().info("MainController", "BLE服务启动完成");
     
-    // 5. 设置事件监听器
+    // 步骤6: 设置事件监听器
+    Logger::getInstance().info("MainController", "步骤6: 设置事件监听器...");
     setupEventListeners();
     
     initialized = true;
-    Logger::getInstance().info("MainController", "系统初始化完成");
+    Logger::getInstance().info("MainController", "=== 系统启动流程完成 ===");
     
-    // 初始化成功后，设置运行状态指示
+    // 步骤7: 电机自动启动（如果配置了自动启动）
+    if (configManagerInitialized && motorControllerInitialized) {
+        const MotorConfig& config = ConfigManager::getInstance().getConfig();
+        if (config.autoStart) {
+            Logger::getInstance().info("MainController", "步骤7: 电机自动启动...");
+            MotorController::getInstance().startMotor();
+            Logger::getInstance().info("MainController", "电机自动启动完成");
+        } else {
+            Logger::getInstance().info("MainController", "电机自动启动已禁用");
+        }
+    }
+    
+    // 设置初始LED状态为BLE未连接（黄色闪烁）
     if (ledControllerInitialized) {
         ledController.setState(LEDState::BLE_DISCONNECTED);
     }
