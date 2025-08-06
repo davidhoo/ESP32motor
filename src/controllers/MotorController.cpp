@@ -30,10 +30,9 @@ MotorController::MotorController()
 
 // 析构函数
 MotorController::~MotorController() {
-    if (isInitialized && gpioDriver) {
+    if (isInitialized) {
         stopMotor();
-        delete gpioDriver;
-        gpioDriver = nullptr;
+        // 智能指针自动释放资源，无需手动delete
     }
 }
 
@@ -46,8 +45,8 @@ bool MotorController::init() {
         return true;
     }
     
-    // 创建GPIO驱动实例
-    gpioDriver = new GPIODriver();
+    // 创建GPIO驱动实例（RAII模式）
+    gpioDriver.reset(new GPIODriver());
     if (!gpioDriver) {
         setLastError("无法创建GPIO驱动");
         return false;
@@ -56,8 +55,7 @@ bool MotorController::init() {
     // 初始化GPIO
     if (!gpioDriver->init(MOTOR_PIN, OUTPUT, MOTOR_OFF)) {
         setLastError("GPIO驱动初始化失败");
-        delete gpioDriver;
-        gpioDriver = nullptr;
+        gpioDriver.reset();  // 智能指针自动释放资源
         return false;
     }
     
