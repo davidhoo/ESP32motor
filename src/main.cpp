@@ -14,6 +14,8 @@
 #include "tests/ConfigManagerTest.h"
 #include "controllers/MotorController.h"
 #include "tests/MotorControllerTest.h"
+#include "controllers/MotorBLEServer.h"
+#include "tests/MotorBLEServerTest.h"
 
 // 全局对象
 GPIODriver gpioDriver;
@@ -33,11 +35,12 @@ enum TestMode {
     NVS_STORAGE_TEST_MODE = 4,
     LED_CONTROLLER_TEST_MODE = 5,
     CONFIG_MANAGER_TEST_MODE = 6,
-    MOTOR_CONTROLLER_TEST_MODE = 7
+    MOTOR_CONTROLLER_TEST_MODE = 7,
+    BLE_SERVER_TEST_MODE = 8
 };
 
 // 当前测试模式
-TestMode currentTestMode = MOTOR_CONTROLLER_TEST_MODE; // 默认运行MotorController测试
+TestMode currentTestMode = BLE_SERVER_TEST_MODE; // 运行BLE服务器测试
 
 // 函数声明
 void runGPIOTests();
@@ -48,6 +51,7 @@ void runNVSStorageTests();
 void runLEDControllerTests();
 void runConfigManagerTests();
 void runMotorControllerTests();
+void runBLEServerTests();
 
 void setup() {
     // 初始化串口
@@ -111,6 +115,11 @@ void setup() {
         case MOTOR_CONTROLLER_TEST_MODE:
             LOG_TAG_INFO("System", "运行模式: MotorController测试");
             runMotorControllerTests();
+            break;
+            
+        case BLE_SERVER_TEST_MODE:
+            LOG_TAG_INFO("System", "运行模式: BLE服务器测试");
+            runBLEServerTests();
             break;
             
         default:
@@ -241,7 +250,44 @@ void loop() {
                 delay(100);
             }
             break;
+                
+        case BLE_SERVER_TEST_MODE:
+            // BLE服务器测试需要持续更新
+        {
+            static unsigned long lastUpdate = 0;
+            static bool bleInitialized = false;
             
+            MotorBLEServer& bleServer = MotorBLEServer::getInstance();
+            
+            if (!bleInitialized) {
+                // 初始化LED控制器用于状态指示
+                static LEDController bleLedController;
+                if (bleLedController.init()) {
+                    bleLedController.setState(LEDState::BLE_CONNECTED);
+                }
+                bleInitialized = true;
+            }
+            
+            // 每2秒更新一次状态
+            if (millis() - lastUpdate > 2000) {
+                lastUpdate = millis();
+                
+                // 显示当前状态
+                bool connected = bleServer.isConnected();
+                LOG_TAG_INFO("System", "BLE状态: %s", connected ? "已连接" : "未连接");
+                
+                // 发送状态通知
+                if (connected) {
+                    bleServer.update();
+                }
+            }
+            
+            // 更新BLE服务器
+            bleServer.update();
+            delay(100);
+        }
+            break;
+                
         default:
             delay(1000);
             break;
@@ -436,4 +482,33 @@ void runMotorControllerTests() {
     
     LOG_TAG_INFO("System", "MotorController测试完成！");
     LOG_TAG_INFO("System", "将在loop()中每10秒启动/停止一次电机进行循环测试");
+}
+
+/**
+ * 运行BLE服务器测试
+ */
+void runBLEServerTests() {
+    LOG_TAG_INFO("System", "开始BLE服务器测试");
+    
+    // 获取BLE服务器实例
+    MotorBLEServer& bleServer = MotorBLEServer::getInstance();
+    
+    LOG_TAG_INFO("System", "初始化BLE服务器...");
+    if (bleServer.init()) {
+        LOG_TAG_INFO("System", "✅ BLE服务器初始化成功");
+        bleServer.start();
+        LOG_TAG_INFO("System", "✅ BLE服务已启动");
+        LOG_TAG_INFO("System", "设备名称: ESP32-Motor-Control");
+        LOG_TAG_INFO("System", "等待BLE客户端连接...");
+    } else {
+        LOG_TAG_ERROR("System", "❌ BLE服务器初始化失败");
+        LOG_TAG_ERROR("System", "错误: %s", bleServer.getLastError());
+        return;
+    }
+    
+    LOG_TAG_INFO("System", "运行BLE服务器单元测试...");
+    MotorBLEServerTest::runAllTests();
+    
+    LOG_TAG_INFO("System", "BLE服务器测试完成！");
+    LOG_TAG_INFO("System", "将在loop()中持续更新BLE状态");
 }
