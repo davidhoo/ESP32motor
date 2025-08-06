@@ -14,6 +14,7 @@ private:
     static void testStateListeners();
     static void testStateHistory();
     static void testStateNames();
+    static void testIntegrationWithControllers();
 };
 
 // 测试辅助宏 - 使用自定义前缀避免与Unity框架冲突

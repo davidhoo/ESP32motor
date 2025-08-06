@@ -6,6 +6,7 @@
 #include "../drivers/TimerDriver.h"
 #include "../controllers/ConfigManager.h"
 #include "../common/Logger.h"
+#include "../common/StateManager.h"
 #include <memory>
 
 /**
@@ -149,6 +150,8 @@ private:
     void checkStateTransitions();
     void setState(MotorControllerState newState);
     void setLastError(const char* error);
+    void onSystemStateChanged(const StateChangeEvent& event);
+    void updateSystemState();
     
     // 成员变量
     MotorControllerState currentState;        // 当前状态
@@ -166,6 +169,9 @@ private:
     bool isInitialized;             // 是否已初始化
     bool configUpdated;             // 配置是否已更新
     char lastError[100];            // 错误信息
+    
+    // StateManager引用
+    StateManager& stateManager;     // 状态管理器引用
 };
 
 #endif // MOTOR_CONTROLLER_H
