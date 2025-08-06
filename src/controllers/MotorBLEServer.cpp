@@ -2,6 +2,7 @@
 #include "../controllers/MotorController.h"
 #include "../controllers/ConfigManager.h"
 #include "../common/Logger.h"
+#include "../common/EventManager.h"
 #include <ArduinoJson.h>
 
 // 单例实例
@@ -126,9 +127,26 @@ void MotorBLEServer::update() {
         return;
     }
     
-    // 发送状态通知
-    String statusJson = generateStatusJson();
-    sendStatusNotification(statusJson);
+    // === 5.3.3 实时状态推送机制 ===
+    static uint32_t lastStatusUpdate = 0;
+    static uint32_t statusUpdateInterval = 1000; // 1秒定时推送间隔
+    
+    uint32_t currentTime = millis();
+    
+    // 定时状态推送（每秒推送一次，确保客户端获得最新状态）
+    if (currentTime - lastStatusUpdate >= statusUpdateInterval) {
+        String statusJson = generateStatusJson();
+        sendStatusNotification(statusJson);
+        lastStatusUpdate = currentTime;
+        
+        // 动态调整推送频率：电机运行时更频繁推送
+        MotorController& motorController = MotorController::getInstance();
+        if (motorController.isRunning()) {
+            statusUpdateInterval = 500; // 运行时每0.5秒推送
+        } else {
+            statusUpdateInterval = 2000; // 停止时每2秒推送
+        }
+    }
 }
 
 // 获取连接状态
@@ -148,11 +166,25 @@ void MotorBLEServer::sendStatusNotification(const String& status) {
 void MotorBLEServer::ServerCallbacks::onConnect(BLEServer* pServer) {
     bleServer->deviceConnected = true;
     LOG_INFO("BLE客户端已连接");
+    
+    // === 5.3.3 实时状态推送机制 - 发布BLE连接事件 ===
+    EventManager::getInstance().publish(EventData(
+        EventType::BLE_CONNECTED,
+        "MotorBLEServer",
+        "BLE客户端连接成功"
+    ));
 }
 
 void MotorBLEServer::ServerCallbacks::onDisconnect(BLEServer* pServer) {
     bleServer->deviceConnected = false;
     LOG_INFO("BLE客户端已断开");
+    
+    // === 5.3.3 实时状态推送机制 - 发布BLE断开事件 ===
+    EventManager::getInstance().publish(EventData(
+        EventType::BLE_DISCONNECTED,
+        "MotorBLEServer",
+        "BLE客户端连接断开"
+    ));
     
     // 重新启动广播
     BLEDevice::startAdvertising();
@@ -214,13 +246,25 @@ void MotorBLEServer::handleConfigWrite(const String& value) {
         }
         
         // 应用新配置
+        // 应用新配置
         configManager.updateConfig(currentConfig);
         configManager.saveConfig();
         
-        LOG_INFO("配置已更新: 运行=%u, 停止=%u, 循环=%u, 自动启动=%s",
+        // === 5.3.1 参数设置的即时生效逻辑 ===
+        // 立即通知电机控制器应用新配置
+        MotorController& motorController = MotorController::getInstance();
+        motorController.updateConfig(currentConfig);
+        
+        LOG_INFO("配置已更新并即时生效: 运行=%u, 停止=%u, 循环=%u, 自动启动=%s",
                  currentConfig.runDuration, currentConfig.stopDuration, currentConfig.cycleCount,
                  currentConfig.autoStart ? "是" : "否");
-                 
+        
+        // 立即推送更新后的状态给BLE客户端
+        if (isConnected()) {
+            String statusJson = generateStatusJson();
+            sendStatusNotification(statusJson);
+            LOG_INFO("配置更新后状态已推送给BLE客户端");
+        }
     } catch (const std::exception& e) {
         LOG_ERROR("处理配置写入异常: %s", e.what());
     }
@@ -243,17 +287,74 @@ void MotorBLEServer::handleCommandWrite(const String& value) {
             return;
         }
         
+        // === 5.3.2 手动启动/停止命令的优先级处理 ===
         MotorController& motorController = MotorController::getInstance();
+        MotorControllerState currentState = motorController.getCurrentState();
         
         if (strcmp(command, "start") == 0) {
-            motorController.startMotor();
-            LOG_INFO("收到启动命令");
+            // 启动命令优先级处理
+            if (currentState == MotorControllerState::STOPPED ||
+                currentState == MotorControllerState::STOPPING) {
+                bool success = motorController.startMotor();
+                if (success) {
+                    LOG_INFO("手动启动命令执行成功");
+                    // 立即推送状态更新
+                    if (isConnected()) {
+                        String statusJson = generateStatusJson();
+                        sendStatusNotification(statusJson);
+                    }
+                } else {
+                    LOG_ERROR("手动启动命令执行失败: %s", motorController.getLastError());
+                }
+            } else if (currentState == MotorControllerState::RUNNING ||
+                       currentState == MotorControllerState::STARTING) {
+                LOG_WARN("电机已在运行中，忽略重复启动命令");
+            } else {
+                LOG_WARN("电机处于错误状态，无法启动");
+            }
+            
         } else if (strcmp(command, "stop") == 0) {
-            motorController.stopMotor();
-            LOG_INFO("收到停止命令");
+            // 停止命令优先级处理（最高优先级，可以中断任何状态）
+            if (currentState != MotorControllerState::STOPPED) {
+                bool success = motorController.stopMotor();
+                if (success) {
+                    LOG_INFO("手动停止命令执行成功（优先级处理）");
+                    // 立即推送状态更新
+                    if (isConnected()) {
+                        String statusJson = generateStatusJson();
+                        sendStatusNotification(statusJson);
+                    }
+                } else {
+                    LOG_ERROR("手动停止命令执行失败: %s", motorController.getLastError());
+                }
+            } else {
+                LOG_WARN("电机已停止，忽略重复停止命令");
+            }
+            
         } else if (strcmp(command, "reset") == 0) {
-            motorController.resetCycleCount();
-            LOG_INFO("收到重置命令");
+            // 重置命令优先级处理
+            if (currentState == MotorControllerState::STOPPED) {
+                motorController.resetCycleCount();
+                LOG_INFO("循环计数器重置命令执行成功");
+                // 立即推送状态更新
+                if (isConnected()) {
+                    String statusJson = generateStatusJson();
+                    sendStatusNotification(statusJson);
+                }
+            } else {
+                LOG_WARN("电机运行中，无法重置循环计数器，请先停止电机");
+            }
+            
+        } else if (strcmp(command, "force_stop") == 0) {
+            // 强制停止命令（紧急停止，最高优先级）
+            motorController.stopMotor();
+            LOG_INFO("强制停止命令执行（紧急停止）");
+            // 立即推送状态更新
+            if (isConnected()) {
+                String statusJson = generateStatusJson();
+                sendStatusNotification(statusJson);
+            }
+            
         } else {
             LOG_WARN("未知命令: %s", command);
         }
@@ -332,20 +433,33 @@ void MotorBLEServer::onSystemStateChanged(const StateChangeEvent& event) {
              StateManager::getStateName(event.oldState).c_str(),
              StateManager::getStateName(event.newState).c_str());
     
+    // === 5.3.3 实时状态推送机制 - 事件驱动推送 ===
     // 如果有客户端连接，立即发送状态更新
     if (isConnected()) {
-        String statusJson = generateStatusJson();
-        sendStatusNotification(statusJson);
+        // 生成包含系统状态变更信息的完整状态JSON
+        DynamicJsonDocument doc(1024);
         
-        // 同时更新系统状态信息到状态JSON中
-        DynamicJsonDocument doc(512);
-        deserializeJson(doc, statusJson);
+        // 首先获取基础状态信息
+        String baseStatusJson = generateStatusJson();
+        deserializeJson(doc, baseStatusJson);
+        
+        // 添加系统状态变更信息
         doc["systemState"] = StateManager::getStateName(event.newState);
         doc["systemStateReason"] = event.reason;
         doc["systemStateTimestamp"] = event.timestamp;
+        doc["eventType"] = "system_state_change";
+        doc["eventTime"] = millis();
+        
+        // 添加状态变更详情
+        JsonObject stateChange = doc.createNestedObject("stateChange");
+        stateChange["from"] = StateManager::getStateName(event.oldState);
+        stateChange["to"] = StateManager::getStateName(event.newState);
+        stateChange["reason"] = event.reason;
         
         String updatedJson;
         serializeJson(doc, updatedJson);
         sendStatusNotification(updatedJson);
+        
+        LOG_INFO("系统状态变更已实时推送给BLE客户端");
     }
 }
