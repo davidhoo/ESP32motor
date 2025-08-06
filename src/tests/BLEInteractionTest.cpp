@@ -106,9 +106,11 @@ bool BLEInteractionTest::testConfigImmediateEffect() {
         
         LOG_INFO("初始配置: 运行=%u, 停止=%u", initialConfig.runDuration, initialConfig.stopDuration);
         
-        // 模拟BLE配置更新
-        String configJson = "{\"runDuration\":3000,\"stopDuration\":1500,\"cycleCount\":5,\"autoStart\":false}";
-        bleServer.handleConfigWrite(configJson);
+        // 模拟BLE配置更新 - 分别设置运行时长和停止间隔
+        // 运行时长：3000ms = 30个100ms单位
+        bleServer.handleRunDurationWrite("30");
+        // 停止间隔：1500ms = 1.5秒
+        bleServer.handleStopIntervalWrite("1");
         
         // 验证电机控制器是否获得了新配置
         const MotorConfig& motorConfig = motorController.getCurrentConfig();
@@ -121,11 +123,10 @@ bool BLEInteractionTest::testConfigImmediateEffect() {
         LOG_INFO("配置即时生效测试通过");
         
         // 恢复初始配置
-        configJson = "{\"runDuration\":" + String(initialConfig.runDuration) +
-                    ",\"stopDuration\":" + String(initialConfig.stopDuration) +
-                    ",\"cycleCount\":" + String(initialConfig.cycleCount) +
-                    ",\"autoStart\":" + (initialConfig.autoStart ? "true" : "false") + "}";
-        bleServer.handleConfigWrite(configJson);
+        // 运行时长：5000ms = 50个100ms单位
+        bleServer.handleRunDurationWrite("50");
+        // 停止间隔：2000ms = 2秒
+        bleServer.handleStopIntervalWrite("2");
         
         return true;
         
@@ -140,40 +141,36 @@ bool BLEInteractionTest::testCommandPriorityHandling() {
     LOG_INFO("测试2: 手动启动/停止命令的优先级处理");
     
     try {
-        // 测试命令处理逻辑（不依赖电机控制器初始化状态）
-        String startCommand = "{\"command\":\"start\"}";
-        bleServer.handleCommandWrite(startCommand);
+        // 测试命令处理逻辑（使用系统控制特征值）
+        // 启动命令 (1 = 启动)
+        bleServer.handleSystemControlWrite("1");
         delay(100);
         
         LOG_INFO("启动命令处理完成");
         
-        // 测试停止命令（最高优先级）
-        String stopCommand = "{\"command\":\"stop\"}";
-        bleServer.handleCommandWrite(stopCommand);
+        // 测试停止命令 (0 = 停止)
+        bleServer.handleSystemControlWrite("0");
         delay(100);
         
         LOG_INFO("停止命令处理完成");
         
-        // 测试强制停止命令
-        String forceStopCommand = "{\"command\":\"force_stop\"}";
-        bleServer.handleCommandWrite(forceStopCommand);
+        // 测试无效控制值
+        bleServer.handleSystemControlWrite("2");
         delay(100);
         
-        LOG_INFO("强制停止命令处理完成");
+        LOG_INFO("无效控制值处理完成");
         
-        // 测试重置命令
-        String resetCommand = "{\"command\":\"reset\"}";
-        bleServer.handleCommandWrite(resetCommand);
+        // 再次测试启动
+        bleServer.handleSystemControlWrite("1");
         delay(100);
         
-        LOG_INFO("重置命令处理完成");
+        LOG_INFO("再次启动命令处理完成");
         
-        // 测试无效命令
-        String invalidCommand = "{\"command\":\"invalid\"}";
-        bleServer.handleCommandWrite(invalidCommand);
+        // 最终停止
+        bleServer.handleSystemControlWrite("0");
         delay(100);
         
-        LOG_INFO("无效命令处理完成");
+        LOG_INFO("最终停止命令处理完成");
         
         LOG_INFO("命令优先级处理逻辑验证通过");
         return true;
@@ -289,36 +286,33 @@ bool BLEInteractionTest::testErrorHandlingAndRecovery() {
     LOG_INFO("测试5: 错误处理和恢复");
     
     try {
-        // 测试无效JSON处理
-        String invalidJson = "{invalid json}";
-        bleServer.handleConfigWrite(invalidJson);
+        // 测试无效数值处理
+        String invalidValue = "invalid";
+        bleServer.handleRunDurationWrite(invalidValue);
         // 应该不会崩溃，只是记录错误
         
-        bleServer.handleCommandWrite(invalidJson);
+        bleServer.handleStopIntervalWrite(invalidValue);
         // 应该不会崩溃，只是记录错误
         
-        LOG_INFO("无效JSON错误处理通过");
+        bleServer.handleSystemControlWrite(invalidValue);
+        // 应该不会崩溃，只是记录错误
         
-        // 测试无效命令处理
-        String invalidCommand = "{\"command\":\"invalid_command\"}";
-        bleServer.handleCommandWrite(invalidCommand);
-        // 应该记录警告但不崩溃
+        LOG_INFO("无效数值错误处理通过");
         
-        LOG_INFO("无效命令错误处理通过");
+        // 测试超出范围的值
+        bleServer.handleRunDurationWrite("10000"); // 超出最大值9990
+        bleServer.handleStopIntervalWrite("1000");  // 超出最大值999
+        bleServer.handleSystemControlWrite("5");    // 超出有效值0-1
         
-        // 测试空配置处理
-        String emptyConfig = "{}";
-        bleServer.handleConfigWrite(emptyConfig);
-        // 应该不会改变现有配置
+        LOG_INFO("超出范围值错误处理通过");
         
-        LOG_INFO("空配置错误处理通过");
+        // 测试边界值
+        bleServer.handleRunDurationWrite("1");    // 最小值
+        bleServer.handleRunDurationWrite("9990"); // 最大值
+        bleServer.handleStopIntervalWrite("0");   // 最小值
+        bleServer.handleStopIntervalWrite("999"); // 最大值
         
-        // 测试配置边界值
-        String boundaryConfig = "{\"runDuration\":0,\"stopDuration\":0,\"cycleCount\":999999}";
-        bleServer.handleConfigWrite(boundaryConfig);
-        // 应该能处理边界值
-        
-        LOG_INFO("配置边界值处理通过");
+        LOG_INFO("边界值处理通过");
         
         return true;
         

@@ -64,8 +64,9 @@ public:
     const char* getLastError() const { return lastError; }
 
     // 公开这些方法供测试使用
-    void handleConfigWrite(const String& value);
-    void handleCommandWrite(const String& value);
+    void handleRunDurationWrite(const String& value);
+    void handleStopIntervalWrite(const String& value);
+    void handleSystemControlWrite(const String& value);
     String generateStatusJson();
     String generateInfoJson();
     void onSystemStateChanged(const StateChangeEvent& event);
@@ -79,10 +80,10 @@ private:
     // BLE相关对象
     BLEServer* pServer = nullptr;
     BLEService* pService = nullptr;
-    BLECharacteristic* pConfigCharacteristic = nullptr;
-    BLECharacteristic* pCommandCharacteristic = nullptr;
-    BLECharacteristic* pStatusCharacteristic = nullptr;
-    BLECharacteristic* pInfoCharacteristic = nullptr;
+    BLECharacteristic* pRunDurationCharacteristic = nullptr;
+    BLECharacteristic* pStopIntervalCharacteristic = nullptr;
+    BLECharacteristic* pSystemControlCharacteristic = nullptr;
+    BLECharacteristic* pStatusQueryCharacteristic = nullptr;
     
     // 状态
     // 状态
@@ -98,12 +99,12 @@ private:
     // StateManager引用
     StateManager& stateManager;
     
-    // UUID定义
-    static constexpr const char* SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
-    static constexpr const char* CONFIG_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-    static constexpr const char* COMMAND_CHAR_UUID = "2a56d7e4-6f1f-4a7e-8c5b-3e3b9c7f8a2b";
-    static constexpr const char* STATUS_CHAR_UUID = "3c2a8d1e-5f3d-4a7b-9c8e-1f2a3b4c5d6e";
-    static constexpr const char* INFO_CHAR_UUID = "4d3c7b2a-1e5f-4a8c-9b7e-2f3a4b5c6d7e";
+    // UUID定义 - 与需求文档保持一致
+    static constexpr const char* SERVICE_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    static constexpr const char* RUN_DURATION_CHAR_UUID = "2f7a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c6";
+    static constexpr const char* STOP_INTERVAL_CHAR_UUID = "3f8a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c7";
+    static constexpr const char* SYSTEM_CONTROL_CHAR_UUID = "4f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c8";
+    static constexpr const char* STATUS_QUERY_CHAR_UUID = "5f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c9";
     
     // 设备名称
     static constexpr const char* DEVICE_NAME = "ESP32-Motor-Control";
