@@ -84,7 +84,7 @@ bool MotorBLEServer::init() {
         
         pRunDurationCharacteristic->setValue(String(config.runDuration).c_str());
         pStopIntervalCharacteristic->setValue(String(config.stopDuration).c_str());
-        pSystemControlCharacteristic->setValue("0");  // 系统控制初始为停止状态
+        pSystemControlCharacteristic->setValue("1");  // 系统控制初始为启动状态
         pStatusQueryCharacteristic->setValue(generateStatusJson().c_str());
         
         LOG_INFO("BLE特征值已初始化 - 运行时长: %lu秒, 停止间隔: %lu秒",
@@ -235,9 +235,9 @@ void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharact
         MotorConfig config = configManager.getConfig();
         pCharacteristic->setValue(String(config.stopDuration).c_str());
     } else if (strcmp(charUUID, SYSTEM_CONTROL_CHAR_UUID) == 0) {
-        MotorController& motorController = MotorController::getInstance();
-        String controlValue = (motorController.getCurrentState() == MotorControllerState::RUNNING) ? "1" : "0";
-        pCharacteristic->setValue(controlValue.c_str());
+        // 系统控制开关状态，独立于电机实际运行状态
+        std::string currentValue = pCharacteristic->getValue();
+        pCharacteristic->setValue(currentValue);
     } else if (strcmp(charUUID, STATUS_QUERY_CHAR_UUID) == 0) {
         String statusJson = bleServer->generateStatusJson();
         pCharacteristic->setValue(statusJson.c_str());
@@ -319,44 +319,82 @@ void MotorBLEServer::handleStopIntervalWrite(const String& value) {
     }
 }
 // 处理系统控制写入
+// 处理系统控制写入
 void MotorBLEServer::handleSystemControlWrite(const String& value) {
     try {
         uint8_t control = atoi(value.c_str());
+        LOG_INFO("收到系统控制命令: %u (0=停止, 1=启动)", control);
+        
         if (control > 1) {
             LOG_ERROR("系统控制值无效: %u (有效值: 0=停止, 1=启动)", control);
             return;
         }
         
         MotorController& motorController = MotorController::getInstance();
+        ConfigManager& configManager = ConfigManager::getInstance();
         
         if (control == 1) {
-            // 启动命令
+            // 启动命令 - 重新启用自动启动并启动电机
+            LOG_INFO("执行启动命令...");
+            
+            // 恢复自动启动功能（如果之前被禁用）
+            MotorConfig currentConfig = configManager.getConfig();
+            if (!currentConfig.autoStart) {
+                LOG_INFO("🔄 重新启用自动启动功能");
+                currentConfig.autoStart = true;
+                motorController.updateConfig(currentConfig);
+                configManager.updateConfig(currentConfig);
+                configManager.saveConfig(); // 保存到NVS
+            }
+            
             bool success = motorController.startMotor();
             if (success) {
-                LOG_INFO("系统控制: 启动命令执行成功");
+                LOG_INFO("✅ 系统控制: 启动命令执行成功");
             } else {
-                LOG_ERROR("系统控制: 启动命令执行失败: %s", motorController.getLastError());
+                LOG_ERROR("❌ 系统控制: 启动命令执行失败: %s", motorController.getLastError());
             }
         } else {
-            // 停止命令
+            // 停止命令 - 关键修复：需要禁用自动重启
+            LOG_INFO("执行停止命令...");
+            
+            // 首先获取当前配置并禁用自动启动
+            MotorConfig currentConfig = configManager.getConfig();
+            
+            // 禁用自动启动以防止立即重启
+            if (currentConfig.autoStart) {
+                LOG_INFO("🔄 禁用自动启动，防止电机自动重启");
+                currentConfig.autoStart = false;
+                motorController.updateConfig(currentConfig);
+                // 注意：不保存到NVS，这样重启后仍然是原来的设置
+            }
+            
             bool success = motorController.stopMotor();
             if (success) {
-                LOG_INFO("系统控制: 停止命令执行成功");
+                LOG_INFO("✅ 系统控制: 停止命令执行成功，电机已停止");
+                LOG_INFO("ℹ️  电机将保持停止状态，直到收到启动命令");
             } else {
-                LOG_ERROR("系统控制: 停止命令执行失败: %s", motorController.getLastError());
+                LOG_ERROR("❌ 系统控制: 停止命令执行失败: %s", motorController.getLastError());
+                // 如果停止失败，恢复自动启动设置
+                currentConfig.autoStart = true;
+                motorController.updateConfig(currentConfig);
             }
+        }
+        
+        // 更新BLE特征值以反映当前控制状态
+        if (pSystemControlCharacteristic) {
+            pSystemControlCharacteristic->setValue(String(control).c_str());
         }
         
         // 立即推送更新后的状态
         if (this->isConnected()) {
             String statusJson = this->generateStatusJson();
             this->sendStatusNotification(statusJson);
+            LOG_INFO("📡 状态已推送给BLE客户端");
         }
     } catch (const std::exception& e) {
         LOG_ERROR("处理系统控制写入异常: %s", e.what());
     }
 }
-
 // 生成状态JSON
 String MotorBLEServer::generateStatusJson() {
     MotorController& motorController = MotorController::getInstance();

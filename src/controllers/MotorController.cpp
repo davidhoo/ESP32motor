@@ -140,6 +140,12 @@ void MotorController::handleStoppedState() {
         return; // 不再启动新的循环
     }
     
+    // 关键修复：检查自动启动是否被禁用（手动停止模式）
+    if (!currentConfig.autoStart) {
+        LOG_TAG_INFO("MotorController", "自动启动已禁用，保持停止状态（手动停止模式）");
+        return; // 不自动启动，等待手动启动命令
+    }
+    
     // 处理停止间隔为0的持续运行模式
     if (currentConfig.stopDuration == 0) {
         LOG_TAG_INFO("MotorController", "持续运行模式，立即启动下一个周期");
