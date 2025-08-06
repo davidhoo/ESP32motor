@@ -19,6 +19,7 @@
 #include "tests/EventManagerTest.h"
 #include "tests/StateManagerTest.h"
 #include "tests/MotorCycleTest.h"
+#include "tests/BLEInteractionTest.h"
 
 // 全局对象
 GPIODriver gpioDriver;
@@ -42,11 +43,12 @@ enum TestMode {
     BLE_SERVER_TEST_MODE = 8,
     EVENT_MANAGER_TEST_MODE = 9,
     STATE_MANAGER_TEST_MODE = 10,
-    MOTOR_CYCLE_TEST_MODE = 11
+    MOTOR_CYCLE_TEST_MODE = 11,
+    BLE_INTERACTION_TEST_MODE = 12
 };
 
 // 当前测试模式
-TestMode currentTestMode = MOTOR_CYCLE_TEST_MODE; // 运行电机循环控制测试
+TestMode currentTestMode = BLE_INTERACTION_TEST_MODE; // 运行BLE交互流程测试
 
 // 函数声明
 void runGPIOTests();
@@ -61,6 +63,7 @@ void runBLEServerTests();
 void runEventManagerTests();
 void runStateManagerTests();
 void runMotorCycleTests();
+void runBLEInteractionTests();
 
 void setup() {
     // 初始化串口
@@ -145,6 +148,11 @@ void setup() {
         case MOTOR_CYCLE_TEST_MODE:
             LOG_TAG_INFO("System", "运行模式: 电机循环控制测试");
             runMotorCycleTests();
+            break;
+            
+        case BLE_INTERACTION_TEST_MODE:
+            LOG_TAG_INFO("System", "运行模式: BLE交互流程测试");
+            runBLEInteractionTests();
             break;
             
         default:
@@ -659,4 +667,29 @@ void runMotorCycleTests() {
     }
     
     LOG_TAG_INFO("System", "电机循环控制测试完成！");
+}
+
+/**
+ * 运行BLE交互流程测试
+ */
+void runBLEInteractionTests() {
+    LOG_TAG_INFO("System", "开始BLE交互流程测试");
+    LOG_TAG_INFO("System", "测试todo.md 5.3部分的BLE交互流程功能");
+    
+    // 运行所有BLE交互流程测试
+    BLEInteractionTest bleInteractionTest;
+    bool testResult = bleInteractionTest.runAllTests();
+    
+    if (testResult) {
+        LOG_TAG_INFO("System", "BLE交互流程测试全部通过！");
+        LOG_TAG_INFO("System", "✅ todo.md 5.3部分 BLE交互流程 已完成实现和验证");
+    } else {
+        LOG_TAG_ERROR("System", "BLE交互流程测试存在失败项");
+        LOG_TAG_ERROR("System", "❌ todo.md 5.3部分 BLE交互流程 测试未完全通过");
+    }
+    
+    LOG_TAG_INFO("System", "测试摘要:");
+    LOG_TAG_INFO("System", "%s", bleInteractionTest.getTestSummary().c_str());
+    
+    LOG_TAG_INFO("System", "BLE交互流程测试完成！");
 }

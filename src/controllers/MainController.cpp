@@ -476,6 +476,14 @@ void MainController::handleBLEEvent(const EventData& event) {
                     ledController.setState(LEDState::BLE_CONNECTED);
                 }
             }
+            // === 5.3.3 实时状态推送机制 - BLE连接时立即推送状态 ===
+            if (bleServerInitialized) {
+                // BLE连接后立即推送当前状态
+                MotorBLEServer::getInstance().sendStatusNotification(
+                    MotorBLEServer::getInstance().generateStatusJson()
+                );
+                Logger::getInstance().info("MainController", "BLE连接后已推送初始状态");
+            }
             break;
             
         case EventType::BLE_DISCONNECTED:
