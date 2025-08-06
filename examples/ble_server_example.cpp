@@ -45,8 +45,8 @@ void setup() {
         
         // 设置默认配置
         MotorConfig config = configManager.getConfig();
-        config.runDuration = 10000;   // 10秒运行 (毫秒)
-        config.stopDuration = 5000;   // 5秒停止 (毫秒)
+        config.runDuration = 10;      // 10秒运行
+        config.stopDuration = 5;      // 5秒停止
         configManager.updateConfig(config);
         configManager.saveConfig();
         LOG_TAG_INFO("Main", "默认配置已设置: 运行10秒，停止5秒");

@@ -67,8 +67,8 @@ bool NVSStorageTest::testSaveConfig() {
     }
     
     MotorConfig config;
-    config.runDuration = 1000;
-    config.stopDuration = 500;
+    config.runDuration = 10;
+    config.stopDuration = 5;
     config.cycleCount = 10;
     config.autoStart = true;
     
@@ -87,8 +87,8 @@ bool NVSStorageTest::testLoadConfig() {
     }
     
     // 验证读取的数据是否正确
-    return (config.runDuration == 1000) &&
-           (config.stopDuration == 500) &&
+    return (config.runDuration == 10) &&
+           (config.stopDuration == 5) &&
            (config.cycleCount == 10) &&
            (config.autoStart == true);
 }
@@ -101,8 +101,8 @@ bool NVSStorageTest::testDeleteConfig() {
     
     // 先保存一个配置
     MotorConfig config;
-    config.runDuration = 2000;
-    config.stopDuration = 1000;
+    config.runDuration = 20;
+    config.stopDuration = 10;
     config.cycleCount = 20;
     config.autoStart = false;
     
@@ -120,7 +120,7 @@ bool NVSStorageTest::testDeleteConfig() {
     // 读取应该失败或返回默认值
     nvsStorage.loadConfig(loadedConfig);
     // 由于loadConfig不会在键不存在时返回false，我们需要检查值是否为默认值
-    return (loadedConfig.runDuration != 2000);
+    return (loadedConfig.runDuration != 20);
 }
 
 bool NVSStorageTest::testPersistence() {
@@ -131,8 +131,8 @@ bool NVSStorageTest::testPersistence() {
     
     // 保存配置
     MotorConfig config;
-    config.runDuration = 3000;
-    config.stopDuration = 1500;
+    config.runDuration = 30;
+    config.stopDuration = 15;
     config.cycleCount = 30;
     config.autoStart = true;
     
@@ -153,8 +153,8 @@ bool NVSStorageTest::testPersistence() {
     }
     
     // 验证数据是否持久化
-    return (loadedConfig.runDuration == 3000) &&
-           (loadedConfig.stopDuration == 1500) &&
+    return (loadedConfig.runDuration == 30) &&
+           (loadedConfig.stopDuration == 15) &&
            (loadedConfig.cycleCount == 30) &&
            (loadedConfig.autoStart == true);
 }

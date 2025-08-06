@@ -24,8 +24,8 @@ MotorController::MotorController()
     memset(lastError, 0, sizeof(lastError));
     
     // 设置默认配置
-    currentConfig.runDuration = 5000;    // 默认5秒
-    currentConfig.stopDuration = 2000;   // 默认2秒
+    currentConfig.runDuration = 5;       // 默认5秒
+    currentConfig.stopDuration = 2;      // 默认2秒
     currentConfig.cycleCount = 0;        // 默认无限循环
     currentConfig.autoStart = true;      // 默认自动启动
 }
@@ -149,7 +149,7 @@ void MotorController::handleStoppedState() {
     
     // 初始化停止时间倒计时
     if (remainingStopTime == 0) {
-        remainingStopTime = currentConfig.stopDuration / 1000; // 转换为秒
+        remainingStopTime = currentConfig.stopDuration; // 直接使用秒
         stateStartTime = millis();
         LOG_TAG_INFO("MotorController", "开始停止间隔倒计时: %lu 秒", remainingStopTime);
     }
@@ -163,7 +163,7 @@ void MotorController::handleStoppedState() {
         setState(MotorControllerState::STARTING);
     } else {
         // 更新剩余停止时间
-        remainingStopTime = (currentConfig.stopDuration / 1000) - elapsed;
+        remainingStopTime = currentConfig.stopDuration - elapsed;
     }
 }
 
@@ -171,7 +171,7 @@ void MotorController::handleStoppedState() {
 void MotorController::handleRunningState() {
     // 初始化运行时间倒计时
     if (remainingRunTime == 0) {
-        remainingRunTime = currentConfig.runDuration / 1000; // 转换为秒
+        remainingRunTime = currentConfig.runDuration; // 直接使用秒
         stateStartTime = millis();
         LOG_TAG_INFO("MotorController", "开始运行时间倒计时: %lu 秒", remainingRunTime);
     }
@@ -197,7 +197,7 @@ void MotorController::handleRunningState() {
         setState(MotorControllerState::STOPPING);
     } else {
         // 更新剩余运行时间
-        remainingRunTime = (currentConfig.runDuration / 1000) - elapsed;
+        remainingRunTime = currentConfig.runDuration - elapsed;
     }
 }
 
@@ -268,18 +268,18 @@ void MotorController::updateConfig(const MotorConfig& config) {
     
     // 如果电机正在运行，根据新配置调整计时器
     if (currentState == MotorControllerState::RUNNING) {
-        if (remainingRunTime > currentConfig.runDuration / 1000) {
-            remainingRunTime = currentConfig.runDuration / 1000;
+        if (remainingRunTime > currentConfig.runDuration) {
+            remainingRunTime = currentConfig.runDuration;
         }
     } else if (currentState == MotorControllerState::STOPPED) {
-        if (remainingStopTime > currentConfig.stopDuration / 1000) {
-            remainingStopTime = currentConfig.stopDuration / 1000;
+        if (remainingStopTime > currentConfig.stopDuration) {
+            remainingStopTime = currentConfig.stopDuration;
         }
     }
     
-    LOG_TAG_DEBUG("MotorController", "运行时间: %u -> %u 毫秒", 
+    LOG_TAG_DEBUG("MotorController", "运行时间: %u -> %u 秒",
                   oldConfig.runDuration, config.runDuration);
-    LOG_TAG_DEBUG("MotorController", "停止时间: %u -> %u 毫秒", 
+    LOG_TAG_DEBUG("MotorController", "停止时间: %u -> %u 秒",
                   oldConfig.stopDuration, config.stopDuration);
 }
 

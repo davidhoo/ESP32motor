@@ -48,8 +48,8 @@ void setup() {
     
     // 创建新配置
     MotorConfig newConfig;
-    newConfig.runDuration = 10000;  // 10秒
-    newConfig.stopDuration = 3000;  // 3秒
+    newConfig.runDuration = 10;     // 10秒
+    newConfig.stopDuration = 3;     // 3秒
     newConfig.cycleCount = 5;       // 5次循环
     newConfig.autoStart = false;    // 不自动启动
     

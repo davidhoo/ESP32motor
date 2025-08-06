@@ -99,22 +99,22 @@ bool BLEInteractionTest::testConfigImmediateEffect() {
     try {
         // 获取初始配置（使用默认值如果未初始化）
         MotorConfig initialConfig;
-        initialConfig.runDuration = 5000;
-        initialConfig.stopDuration = 2000;
+        initialConfig.runDuration = 5;
+        initialConfig.stopDuration = 2;
         initialConfig.cycleCount = 0;
         initialConfig.autoStart = true;
         
-        LOG_INFO("初始配置: 运行=%u, 停止=%u", initialConfig.runDuration, initialConfig.stopDuration);
+        LOG_INFO("初始配置: 运行=%u秒, 停止=%u秒", initialConfig.runDuration, initialConfig.stopDuration);
         
         // 模拟BLE配置更新 - 分别设置运行时长和停止间隔
-        // 运行时长：3000ms = 30个100ms单位
+        // 运行时长：30秒
         bleServer.handleRunDurationWrite("30");
-        // 停止间隔：1500ms = 1.5秒
-        bleServer.handleStopIntervalWrite("1");
+        // 停止间隔：15秒
+        bleServer.handleStopIntervalWrite("15");
         
         // 验证电机控制器是否获得了新配置
         const MotorConfig& motorConfig = motorController.getCurrentConfig();
-        if (motorConfig.runDuration == 3000 && motorConfig.stopDuration == 1500) {
+        if (motorConfig.runDuration == 30 && motorConfig.stopDuration == 15) {
             LOG_INFO("电机控制器配置同步成功");
         } else {
             LOG_WARN("电机控制器配置同步可能受初始化状态影响");
@@ -123,9 +123,9 @@ bool BLEInteractionTest::testConfigImmediateEffect() {
         LOG_INFO("配置即时生效测试通过");
         
         // 恢复初始配置
-        // 运行时长：5000ms = 50个100ms单位
-        bleServer.handleRunDurationWrite("50");
-        // 停止间隔：2000ms = 2秒
+        // 运行时长：5秒
+        bleServer.handleRunDurationWrite("5");
+        // 停止间隔：2秒
         bleServer.handleStopIntervalWrite("2");
         
         return true;
@@ -300,16 +300,16 @@ bool BLEInteractionTest::testErrorHandlingAndRecovery() {
         LOG_INFO("无效数值错误处理通过");
         
         // 测试超出范围的值
-        bleServer.handleRunDurationWrite("10000"); // 超出最大值9990
-        bleServer.handleStopIntervalWrite("1000");  // 超出最大值999
-        bleServer.handleSystemControlWrite("5");    // 超出有效值0-1
+        bleServer.handleRunDurationWrite("1000"); // 超出最大值999
+        bleServer.handleStopIntervalWrite("1000"); // 超出最大值999
+        bleServer.handleSystemControlWrite("5");   // 超出有效值0-1
         
         LOG_INFO("超出范围值错误处理通过");
         
         // 测试边界值
-        bleServer.handleRunDurationWrite("1");    // 最小值
-        bleServer.handleRunDurationWrite("9990"); // 最大值
-        bleServer.handleStopIntervalWrite("0");   // 最小值
+        bleServer.handleRunDurationWrite("1");   // 最小值
+        bleServer.handleRunDurationWrite("999"); // 最大值
+        bleServer.handleStopIntervalWrite("1");  // 最小值
         bleServer.handleStopIntervalWrite("999"); // 最大值
         
         LOG_INFO("边界值处理通过");

@@ -110,14 +110,14 @@ void MotorBLEServerTest::testConfigHandling() {
     MotorConfig originalConfig = configManager.getConfig();
     
     // 测试配置更新 - 分别设置运行时长和停止间隔
-    // 运行时长：15000ms = 150个100ms单位
+    // 运行时长：150秒
     bleServer.handleRunDurationWrite("150");
-    // 停止间隔：8000ms = 8秒
+    // 停止间隔：8秒
     bleServer.handleStopIntervalWrite("8");
     
     MotorConfig newConfig = configManager.getConfig();
-    TEST_ASSERT_EQUAL_UINT32(15000, newConfig.runDuration);
-    TEST_ASSERT_EQUAL_UINT32(8000, newConfig.stopDuration);
+    TEST_ASSERT_EQUAL_UINT32(150, newConfig.runDuration);
+    TEST_ASSERT_EQUAL_UINT32(8, newConfig.stopDuration);
     // 注意：autoStart 不能通过BLE特征值直接设置，需要其他方式
     
     // 恢复原始配置

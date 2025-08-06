@@ -22,8 +22,8 @@ ConfigManager::ConfigManager() :
     memset(validationError, 0, sizeof(validationError));
     
     // 设置默认配置
-    defaultConfig.runDuration = 5000;   // 5秒
-    defaultConfig.stopDuration = 2000;  // 2秒
+    defaultConfig.runDuration = 5;      // 5秒
+    defaultConfig.stopDuration = 2;     // 2秒
     defaultConfig.cycleCount = 0;       // 无限循环
     defaultConfig.autoStart = true;     // 自动启动
     
@@ -81,14 +81,28 @@ bool ConfigManager::loadConfig() {
     
     setLastError("");
     
-    MotorConfig loadedConfig;
+    // 先初始化为默认配置，确保有有效的初始值
+    MotorConfig loadedConfig = defaultConfig;
     
     // 从NVS加载配置
     if (!nvsStorage.loadConfig(loadedConfig)) {
-        setLastError("从NVS加载配置失败");
-        LOG_TAG_ERROR("ConfigManager", "从NVS加载配置失败: %s", nvsStorage.getLastError());
-        return false;
+        // NVS中没有配置或加载失败，使用默认配置
+        LOG_TAG_WARN("ConfigManager", "从NVS加载配置失败: %s，使用默认配置", nvsStorage.getLastError());
+        loadedConfig = defaultConfig;
+        
+        // 更新当前配置为默认配置
+        currentConfig = defaultConfig;
+        lastSavedConfig = defaultConfig;
+        isModified = true; // 标记为已修改，以便后续保存
+        
+        LOG_TAG_INFO("ConfigManager", "使用默认配置");
+        LOG_TAG_DEBUG("ConfigManager", "默认配置 - 运行时长: %lu 秒, 停止时长: %lu 秒, 循环次数: %lu, 自动启动: %s",
+                      currentConfig.runDuration, currentConfig.stopDuration,
+                      currentConfig.cycleCount, currentConfig.autoStart ? "是" : "否");
+        
+        return true; // 使用默认配置也算成功
     }
+    
     // 验证并修正加载的配置
     if (!validateAndSanitizeConfig(loadedConfig)) {
         LOG_TAG_WARN("ConfigManager", "加载的配置存在问题，已自动修正: %s", getValidationError());
@@ -108,7 +122,7 @@ bool ConfigManager::loadConfig() {
     isModified = false;
     
     LOG_TAG_INFO("ConfigManager", "配置加载成功");
-    LOG_TAG_DEBUG("ConfigManager", "运行时长: %lu ms, 停止时长: %lu ms, 循环次数: %lu, 自动启动: %s",
+    LOG_TAG_DEBUG("ConfigManager", "运行时长: %lu 秒, 停止时长: %lu 秒, 循环次数: %lu, 自动启动: %s",
                   currentConfig.runDuration, currentConfig.stopDuration,
                   currentConfig.cycleCount, currentConfig.autoStart ? "是" : "否");
     
@@ -218,7 +232,7 @@ void ConfigManager::updateConfig(const MotorConfig& config) {
     }
     
     LOG_TAG_INFO("ConfigManager", "配置已更新");
-    LOG_TAG_DEBUG("ConfigManager", "运行时长: %lu ms, 停止时长: %lu ms, 循环次数: %lu, 自动启动: %s",
+    LOG_TAG_DEBUG("ConfigManager", "运行时长: %lu 秒, 停止时长: %lu 秒, 循环次数: %lu, 自动启动: %s",
                   currentConfig.runDuration, currentConfig.stopDuration,
                   currentConfig.cycleCount, currentConfig.autoStart ? "是" : "否");
 }
@@ -228,14 +242,14 @@ void ConfigManager::updateConfig(const MotorConfig& config) {
  */
 bool ConfigManager::validateConfig(const MotorConfig& config) const {
     // 验证运行时长
-    if (config.runDuration < 100 || config.runDuration > 3600000) {  // 100ms - 1小时
-        const_cast<ConfigManager*>(this)->setValidationError("运行时长必须在100ms到3600000ms之间");
+    if (config.runDuration < 1 || config.runDuration > 999) {  // 1-999秒
+        const_cast<ConfigManager*>(this)->setValidationError("运行时长必须在1秒到999秒之间");
         return false;
     }
     
     // 验证停止时长
-    if (config.stopDuration < 0 || config.stopDuration > 3600000) {  // 0ms - 1小时
-        const_cast<ConfigManager*>(this)->setValidationError("停止时长必须在0ms到3600000ms之间");
+    if (config.stopDuration < 1 || config.stopDuration > 999) {  // 1-999秒
+        const_cast<ConfigManager*>(this)->setValidationError("停止时长必须在1秒到999秒之间");
         return false;
     }
     
@@ -363,24 +377,24 @@ bool ConfigManager::validateAndSanitizeConfig(MotorConfig& config) const {
     String corrections = "";
     
     // 修正运行时长
-    if (config.runDuration < 100) {
-        corrections += "运行时长过小，已修正为100ms; ";
-        config.runDuration = 100;
+    if (config.runDuration < 1) {
+        corrections += "运行时长过小，已修正为1秒; ";
+        config.runDuration = 1;
         wasModified = true;
-    } else if (config.runDuration > 3600000) {
-        corrections += "运行时长过大，已修正为3600000ms; ";
-        config.runDuration = 3600000;
+    } else if (config.runDuration > 999) {
+        corrections += "运行时长过大，已修正为999秒; ";
+        config.runDuration = 999;
         wasModified = true;
     }
     
     // 修正停止时长
-    if (config.stopDuration < 0) {
-        corrections += "停止时长为负数，已修正为0ms; ";
-        config.stopDuration = 0;
+    if (config.stopDuration < 1) {
+        corrections += "停止时长过小，已修正为1秒; ";
+        config.stopDuration = 1;
         wasModified = true;
-    } else if (config.stopDuration > 3600000) {
-        corrections += "停止时长过大，已修正为3600000ms; ";
-        config.stopDuration = 3600000;
+    } else if (config.stopDuration > 999) {
+        corrections += "停止时长过大，已修正为999秒; ";
+        config.stopDuration = 999;
         wasModified = true;
     }
     
@@ -400,10 +414,10 @@ bool ConfigManager::validateAndSanitizeConfig(MotorConfig& config) const {
     }
     
     // 合理性检查：如果运行时长过短而停止时长过长，给出警告并调整
-    if (config.runDuration < 1000 && config.stopDuration > 60000) {
+    if (config.runDuration < 1 && config.stopDuration > 60) {
         corrections += "运行时长过短而停止时长过长，已调整为合理比例; ";
-        config.runDuration = (config.runDuration > 1000ul) ? config.runDuration : 1000ul;
-        config.stopDuration = (config.stopDuration < 30000ul) ? config.stopDuration : 30000ul;
+        config.runDuration = (config.runDuration > 1ul) ? config.runDuration : 1ul;
+        config.stopDuration = (config.stopDuration < 30ul) ? config.stopDuration : 30ul;
         wasModified = true;
     }
     
@@ -411,7 +425,7 @@ bool ConfigManager::validateAndSanitizeConfig(MotorConfig& config) const {
     if (wasModified) {
         const_cast<ConfigManager*>(this)->setValidationError(corrections.c_str());
         LOG_TAG_WARN("ConfigManager", "配置参数已自动修正: %s", corrections.c_str());
-        LOG_TAG_INFO("ConfigManager", "修正后配置 - 运行: %lums, 停止: %lums, 循环: %lu次, 自动启动: %s",
+        LOG_TAG_INFO("ConfigManager", "修正后配置 - 运行: %lu秒, 停止: %lu秒, 循环: %lu次, 自动启动: %s",
                      config.runDuration, config.stopDuration, config.cycleCount,
                      config.autoStart ? "是" : "否");
     } else {

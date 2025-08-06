@@ -227,17 +227,18 @@ void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharact
 }
 
 // 处理运行时长写入
+// 处理运行时长写入
 void MotorBLEServer::handleRunDurationWrite(const String& value) {
     try {
         uint32_t runDuration = atoi(value.c_str());
-        if (runDuration < 1 || runDuration > 9990) {
-            LOG_ERROR("运行时长超出范围: %u (有效范围: 1-9990)", runDuration);
+        if (runDuration < 1 || runDuration > 999) {
+            LOG_ERROR("运行时长超出范围: %u (有效范围: 1-999秒)", runDuration);
             return;
         }
         
         ConfigManager& configManager = ConfigManager::getInstance();
         MotorConfig currentConfig = configManager.getConfig();
-        currentConfig.runDuration = runDuration;
+        currentConfig.runDuration = runDuration;  // 直接使用秒为单位
         
         configManager.updateConfig(currentConfig);
         configManager.saveConfig();
@@ -246,7 +247,7 @@ void MotorBLEServer::handleRunDurationWrite(const String& value) {
         MotorController& motorController = MotorController::getInstance();
         motorController.updateConfig(currentConfig);
         
-        LOG_INFO("运行时长已更新: %u (100毫秒单位)", runDuration);
+        LOG_INFO("运行时长已更新: %u 秒", runDuration);
         
         // 立即推送更新后的状态
         if (this->isConnected()) {
@@ -257,19 +258,19 @@ void MotorBLEServer::handleRunDurationWrite(const String& value) {
         LOG_ERROR("处理运行时长写入异常: %s", e.what());
     }
 }
-
+// 处理停止间隔写入
 // 处理停止间隔写入
 void MotorBLEServer::handleStopIntervalWrite(const String& value) {
     try {
         uint32_t stopInterval = atoi(value.c_str());
-        if (stopInterval > 999) {
-            LOG_ERROR("停止间隔超出范围: %u (有效范围: 0-999)", stopInterval);
+        if (stopInterval < 1 || stopInterval > 999) {
+            LOG_ERROR("停止间隔超出范围: %u (有效范围: 1-999秒)", stopInterval);
             return;
         }
         
         ConfigManager& configManager = ConfigManager::getInstance();
         MotorConfig currentConfig = configManager.getConfig();
-        currentConfig.stopDuration = stopInterval;
+        currentConfig.stopDuration = stopInterval;  // 直接使用秒为单位
         
         configManager.updateConfig(currentConfig);
         configManager.saveConfig();
@@ -289,7 +290,6 @@ void MotorBLEServer::handleStopIntervalWrite(const String& value) {
         LOG_ERROR("处理停止间隔写入异常: %s", e.what());
     }
 }
-
 // 处理系统控制写入
 void MotorBLEServer::handleSystemControlWrite(const String& value) {
     try {
@@ -354,13 +354,13 @@ String MotorBLEServer::generateStatusJson() {
     doc["currentCycleCount"] = motorController.getCurrentCycleCount();
     
     // 配置信息
+    // 配置信息
     ConfigManager& configManager = ConfigManager::getInstance();
     MotorConfig config = configManager.getConfig();
-    doc["runDuration"] = config.runDuration;
-    doc["stopDuration"] = config.stopDuration;
+    doc["runDuration"] = config.runDuration;  // 直接使用秒
+    doc["stopDuration"] = config.stopDuration;  // 直接使用秒
     doc["cycleCount"] = config.cycleCount;
     doc["autoStart"] = config.autoStart;
-    
     // 系统信息
     doc["uptime"] = millis();
     doc["freeHeap"] = ESP.getFreeHeap();

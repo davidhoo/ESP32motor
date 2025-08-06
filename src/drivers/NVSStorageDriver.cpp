@@ -122,9 +122,17 @@ bool NVSStorageDriver::loadConfig(MotorConfig& config) {
     
     setLastError("");
     
+    // 检查配置是否存在
+    bool configExists = false;
+    
     // 读取runDuration
     esp_err_t err = nvs_get_u32(nvs_handle, "runDuration", &config.runDuration);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    if (err == ESP_OK) {
+        configExists = true;
+    } else if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // 配置不存在，使用默认值
+        Logger::getInstance().warn("NVSStorageDriver", "runDuration配置不存在，将使用默认值");
+    } else {
         setLastError("读取runDuration失败");
         Logger::getInstance().error(String("NVSStorageDriver"), "读取runDuration失败: %s", esp_err_to_name(err));
         return false;
@@ -132,7 +140,12 @@ bool NVSStorageDriver::loadConfig(MotorConfig& config) {
     
     // 读取stopDuration
     err = nvs_get_u32(nvs_handle, "stopDuration", &config.stopDuration);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    if (err == ESP_OK) {
+        configExists = true;
+    } else if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // 配置不存在，使用默认值
+        Logger::getInstance().warn("NVSStorageDriver", "stopDuration配置不存在，将使用默认值");
+    } else {
         setLastError("读取stopDuration失败");
         Logger::getInstance().error(String("NVSStorageDriver"), "读取stopDuration失败: %s", esp_err_to_name(err));
         return false;
@@ -140,7 +153,12 @@ bool NVSStorageDriver::loadConfig(MotorConfig& config) {
     
     // 读取cycleCount
     err = nvs_get_u32(nvs_handle, "cycleCount", &config.cycleCount);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    if (err == ESP_OK) {
+        configExists = true;
+    } else if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // 配置不存在，使用默认值
+        Logger::getInstance().warn("NVSStorageDriver", "cycleCount配置不存在，将使用默认值");
+    } else {
         setLastError("读取cycleCount失败");
         Logger::getInstance().error(String("NVSStorageDriver"), "读取cycleCount失败: %s", esp_err_to_name(err));
         return false;
@@ -149,15 +167,29 @@ bool NVSStorageDriver::loadConfig(MotorConfig& config) {
     // 读取autoStart
     uint8_t autoStartValue = 0;
     err = nvs_get_u8(nvs_handle, "autoStart", &autoStartValue);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) {
+    if (err == ESP_OK) {
+        config.autoStart = (autoStartValue != 0);
+        configExists = true;
+    } else if (err == ESP_ERR_NVS_NOT_FOUND) {
+        // 配置不存在，使用默认值
+        Logger::getInstance().warn("NVSStorageDriver", "autoStart配置不存在，将使用默认值");
+    } else {
         setLastError("读取autoStart失败");
         Logger::getInstance().error(String("NVSStorageDriver"), "读取autoStart失败: %s", esp_err_to_name(err));
         return false;
     }
-    config.autoStart = (autoStartValue != 0);
     
-    Logger::getInstance().info("NVSStorageDriver", "配置读取成功");
-    return true;
+    if (configExists) {
+        Logger::getInstance().info("NVSStorageDriver", "配置读取成功");
+        Logger::getInstance().debug("NVSStorageDriver", "读取的配置 - 运行: %lu秒, 停止: %lu秒, 循环: %lu次, 自动启动: %s",
+                                   config.runDuration, config.stopDuration, config.cycleCount,
+                                   config.autoStart ? "是" : "否");
+        return true;
+    } else {
+        setLastError("NVS中没有找到配置数据");
+        Logger::getInstance().warn("NVSStorageDriver", "NVS中没有找到配置数据，需要使用默认配置");
+        return false;
+    }
 }
 
 /**

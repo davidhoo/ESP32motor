@@ -171,24 +171,24 @@ void ErrorHandlingTest::testRunDurationValidation() {
         
         // 测试过小值修正
         MotorConfig testConfig;
-        testConfig.runDuration = 50; // 小于最小值100
-        testConfig.stopDuration = 1000;
+        testConfig.runDuration = 0; // 小于最小值1秒
+        testConfig.stopDuration = 10;
         testConfig.cycleCount = 1;
-        testConfig.autoStart = false;
         
+        // 测试自动修正功能
         bool wasModified = !configManager.validateAndSanitizeConfig(testConfig);
-        if (wasModified && testConfig.runDuration == 100) {
-            LOG_TAG_INFO("ErrorHandlingTest", "✓ 运行时长过小值自动修正为100ms");
+        if (wasModified && testConfig.runDuration == 1) {
+            LOG_TAG_INFO("ErrorHandlingTest", "✓ 运行时长过小值自动修正为1秒");
         } else {
             LOG_TAG_ERROR("ErrorHandlingTest", "✗ 运行时长过小值修正失败");
             testPassed = false;
         }
         
         // 测试过大值修正
-        testConfig.runDuration = 4000000; // 大于最大值3600000
+        testConfig.runDuration = 1000; // 大于最大值999秒
         wasModified = !configManager.validateAndSanitizeConfig(testConfig);
-        if (wasModified && testConfig.runDuration == 3600000) {
-            LOG_TAG_INFO("ErrorHandlingTest", "✓ 运行时长过大值自动修正为3600000ms");
+        if (wasModified && testConfig.runDuration == 999) {
+            LOG_TAG_INFO("ErrorHandlingTest", "✓ 运行时长过大值自动修正为999秒");
         } else {
             LOG_TAG_ERROR("ErrorHandlingTest", "✗ 运行时长过大值修正失败");
             testPassed = false;
@@ -218,7 +218,7 @@ void ErrorHandlingTest::testStopDurationValidation() {
         // 测试负值修正 - 由于stopDuration是uint32_t，负值会变成很大的正数
         {
             MotorConfig negativeTestConfig;
-            negativeTestConfig.runDuration = 1000;
+            negativeTestConfig.runDuration = 10;
             negativeTestConfig.stopDuration = (uint32_t)(-100); // 负值转换为uint32_t会变成很大的正数
             negativeTestConfig.cycleCount = 1;
             negativeTestConfig.autoStart = false;
@@ -230,11 +230,11 @@ void ErrorHandlingTest::testStopDurationValidation() {
             LOG_TAG_DEBUG("ErrorHandlingTest", "测试后负值配置: 停止时长=%lu, 是否修正=%s",
                          negativeTestConfig.stopDuration, wasModified ? "是" : "否");
             
-            // 由于负值转换为uint32_t会变成很大的正数，应该被修正为最大值3600000
-            if (wasModified && negativeTestConfig.stopDuration == 3600000) {
-                LOG_TAG_INFO("ErrorHandlingTest", "✓ 停止时长负值(转换为大正数)自动修正为3600000ms");
+            // 由于负值转换为uint32_t会变成很大的正数，应该被修正为最大值999秒
+            if (wasModified && negativeTestConfig.stopDuration == 999) {
+                LOG_TAG_INFO("ErrorHandlingTest", "✓ 停止时长负值(转换为大正数)自动修正为999秒");
             } else {
-                LOG_TAG_ERROR("ErrorHandlingTest", "✗ 停止时长负值修正失败，期望3600000ms，实际: %lu", negativeTestConfig.stopDuration);
+                LOG_TAG_ERROR("ErrorHandlingTest", "✗ 停止时长负值修正失败，期望999秒，实际: %lu", negativeTestConfig.stopDuration);
                 testPassed = false;
             }
         }
@@ -242,14 +242,14 @@ void ErrorHandlingTest::testStopDurationValidation() {
         // 测试过大值修正 - 创建新的测试配置
         {
             MotorConfig largeTestConfig;
-            largeTestConfig.runDuration = 1000;
-            largeTestConfig.stopDuration = 4000000; // 大于最大值3600000
+            largeTestConfig.runDuration = 10;
+            largeTestConfig.stopDuration = 1000; // 大于最大值999秒
             largeTestConfig.cycleCount = 1;
             largeTestConfig.autoStart = false;
             
             bool wasModified = !configManager.validateAndSanitizeConfig(largeTestConfig);
-            if (wasModified && largeTestConfig.stopDuration == 3600000) {
-                LOG_TAG_INFO("ErrorHandlingTest", "✓ 停止时长过大值自动修正为3600000ms");
+            if (wasModified && largeTestConfig.stopDuration == 999) {
+                LOG_TAG_INFO("ErrorHandlingTest", "✓ 停止时长过大值自动修正为999秒");
             } else {
                 LOG_TAG_ERROR("ErrorHandlingTest", "✗ 停止时长过大值修正失败");
                 testPassed = false;
@@ -279,8 +279,8 @@ void ErrorHandlingTest::testCycleCountValidation() {
         
         // 测试过大值修正
         MotorConfig testConfig;
-        testConfig.runDuration = 1000;
-        testConfig.stopDuration = 1000;
+        testConfig.runDuration = 10;
+        testConfig.stopDuration = 10;
         testConfig.cycleCount = 2000000; // 大于最大值1000000
         testConfig.autoStart = false;
         
@@ -315,14 +315,14 @@ void ErrorHandlingTest::testParameterAutoCorrection() {
         
         // 测试不合理参数组合的自动修正
         MotorConfig testConfig;
-        testConfig.runDuration = 500; // 过短
-        testConfig.stopDuration = 70000; // 过长
+        testConfig.runDuration = 1; // 最小值
+        testConfig.stopDuration = 70; // 过长
         testConfig.cycleCount = 1;
         testConfig.autoStart = false;
         
         bool wasModified = !configManager.validateAndSanitizeConfig(testConfig);
         if (wasModified) {
-            LOG_TAG_INFO("ErrorHandlingTest", "✓ 不合理参数组合自动修正: 运行=%lums, 停止=%lums", 
+            LOG_TAG_INFO("ErrorHandlingTest", "✓ 不合理参数组合自动修正: 运行=%lu秒, 停止=%lu秒",
                          testConfig.runDuration, testConfig.stopDuration);
         } else {
             LOG_TAG_ERROR("ErrorHandlingTest", "✗ 不合理参数组合修正失败");

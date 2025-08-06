@@ -10,8 +10,8 @@ bool MotorCycleTest::testBasicCycle() {
     
     // 设置测试配置
     MotorConfig testConfig;
-    testConfig.runDuration = 3000;    // 3秒运行
-    testConfig.stopDuration = 2000;   // 2秒停止
+    testConfig.runDuration = 3;       // 3秒运行
+    testConfig.stopDuration = 2;      // 2秒停止
     testConfig.cycleCount = 3;        // 循环3次
     testConfig.autoStart = false;     // 手动启动
     
@@ -88,8 +88,8 @@ bool MotorCycleTest::testContinuousMode() {
     
     // 设置测试配置
     MotorConfig testConfig;
-    testConfig.runDuration = 2000;    // 2秒运行
-    testConfig.stopDuration = 0;      // 0秒停止 (持续运行)
+    testConfig.runDuration = 2;       // 2秒运行
+    testConfig.stopDuration = 1;      // 1秒停止（最小值，不能为0）
     testConfig.cycleCount = 5;        // 循环5次
     testConfig.autoStart = false;     // 手动启动
     
@@ -159,8 +159,8 @@ bool MotorCycleTest::testInfiniteMode() {
     
     // 设置测试配置
     MotorConfig testConfig;
-    testConfig.runDuration = 1000;    // 1秒运行
-    testConfig.stopDuration = 500;    // 0.5秒停止
+    testConfig.runDuration = 1;       // 1秒运行
+    testConfig.stopDuration = 1;      // 1秒停止
     testConfig.cycleCount = 0;        // 0表示无限循环
     testConfig.autoStart = false;     // 手动启动
     
@@ -233,8 +233,8 @@ bool MotorCycleTest::testConfigUpdate() {
     
     // 初始配置
     MotorConfig testConfig;
-    testConfig.runDuration = 2000;    // 2秒运行
-    testConfig.stopDuration = 1000;   // 1秒停止
+    testConfig.runDuration = 2;       // 2秒运行
+    testConfig.stopDuration = 1;      // 1秒停止
     testConfig.cycleCount = 0;        // 无限循环
     testConfig.autoStart = false;     // 手动启动
     
@@ -268,8 +268,8 @@ bool MotorCycleTest::testConfigUpdate() {
     LOG_TAG_INFO("MotorCycleTest", "更新前循环次数: %u", cyclesBeforeUpdate);
     
     // 动态更新配置
-    testConfig.runDuration = 1000;    // 改为1秒运行
-    testConfig.stopDuration = 500;    // 改为0.5秒停止
+    testConfig.runDuration = 1;       // 改为1秒运行
+    testConfig.stopDuration = 1;      // 改为1秒停止
     testConfig.cycleCount = cyclesBeforeUpdate + 3; // 设置循环次数限制
     
     motor.updateConfig(testConfig);
