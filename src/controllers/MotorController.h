@@ -6,6 +6,7 @@
 #include "../drivers/TimerDriver.h"
 #include "../controllers/ConfigManager.h"
 #include "../common/Logger.h"
+#include <memory>
 
 /**
  * @brief 电机状态枚举
@@ -152,7 +153,7 @@ private:
     // 成员变量
     MotorControllerState currentState;        // 当前状态
     MotorConfig currentConfig;      // 当前配置
-    GPIODriver* gpioDriver;         // GPIO驱动
+    std::unique_ptr<GPIODriver> gpioDriver;   // GPIO驱动（智能指针）
     TimerDriver& timer;             // 定时器驱动
     
     // 计时相关
