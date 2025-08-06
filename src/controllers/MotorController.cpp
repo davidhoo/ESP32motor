@@ -39,6 +39,7 @@ MotorController::~MotorController() {
 }
 
 // 初始化
+// 初始化
 bool MotorController::init() {
     LOG_TAG_INFO("MotorController", "初始化电机控制器...");
     
@@ -61,6 +62,20 @@ bool MotorController::init() {
         return false;
     }
     
+    // 从ConfigManager获取实际配置，优先使用NVS中的配置
+    try {
+        ConfigManager& configManager = ConfigManager::getInstance();
+        const MotorConfig& actualConfig = configManager.getConfig();
+        currentConfig = actualConfig;
+        
+        LOG_TAG_INFO("MotorController", "已加载实际配置 - 运行: %lu秒, 停止: %lu秒, 循环: %lu次, 自动启动: %s",
+                     currentConfig.runDuration, currentConfig.stopDuration,
+                     currentConfig.cycleCount, currentConfig.autoStart ? "是" : "否");
+    } catch (...) {
+        LOG_TAG_WARN("MotorController", "无法获取ConfigManager配置，使用默认配置");
+        // 保持使用构造函数中设置的默认配置
+    }
+    
     isInitialized = true;
     setState(MotorControllerState::STOPPED);
     
@@ -72,7 +87,6 @@ bool MotorController::init() {
     LOG_TAG_INFO("MotorController", "电机控制器初始化成功");
     return true;
 }
-
 // 启动电机
 bool MotorController::startMotor() {
     if (!isInitialized) {
