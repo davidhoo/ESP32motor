@@ -88,21 +88,17 @@ void MotorBLEServerTest::testCommandHandling() {
     // 初始化电机控制器
     motorController.init();
     
-    // 测试启动命令
-    String startCommand = "{\"command\":\"start\"}";
-    bleServer.handleCommandWrite(startCommand);
+    // 测试启动命令 (1 = 启动)
+    bleServer.handleSystemControlWrite("1");
     TEST_ASSERT_TRUE(motorController.isRunning() || motorController.getCurrentState() == MotorControllerState::STARTING);
     
-    // 测试停止命令
-    String stopCommand = "{\"command\":\"stop\"}";
-    bleServer.handleCommandWrite(stopCommand);
+    // 测试停止命令 (0 = 停止)
+    bleServer.handleSystemControlWrite("0");
     TEST_ASSERT_TRUE(motorController.isStopped() || motorController.getCurrentState() == MotorControllerState::STOPPING);
     
-    // 测试重置命令
-    uint32_t initialCycles = motorController.getCurrentCycleCount();
-    String resetCommand = "{\"command\":\"reset\"}";
-    bleServer.handleCommandWrite(resetCommand);
-    TEST_ASSERT_EQUAL_UINT32(0, motorController.getCurrentCycleCount());
+    // 注意：系统控制特征值只支持启动/停止，不支持重置命令
+    // 重置功能需要通过其他方式实现，这里跳过重置测试
+    LOG_INFO("系统控制特征值不支持重置命令，跳过重置测试");
 }
 
 void MotorBLEServerTest::testConfigHandling() {
@@ -113,14 +109,16 @@ void MotorBLEServerTest::testConfigHandling() {
     configManager.init();
     MotorConfig originalConfig = configManager.getConfig();
     
-    // 测试配置更新
-    String configJson = "{\"runDuration\":15000,\"stopDuration\":8000,\"autoStart\":true}";
-    bleServer.handleConfigWrite(configJson);
+    // 测试配置更新 - 分别设置运行时长和停止间隔
+    // 运行时长：15000ms = 150个100ms单位
+    bleServer.handleRunDurationWrite("150");
+    // 停止间隔：8000ms = 8秒
+    bleServer.handleStopIntervalWrite("8");
     
     MotorConfig newConfig = configManager.getConfig();
     TEST_ASSERT_EQUAL_UINT32(15000, newConfig.runDuration);
     TEST_ASSERT_EQUAL_UINT32(8000, newConfig.stopDuration);
-    TEST_ASSERT_TRUE(newConfig.autoStart);
+    // 注意：autoStart 不能通过BLE特征值直接设置，需要其他方式
     
     // 恢复原始配置
     configManager.updateConfig(originalConfig);

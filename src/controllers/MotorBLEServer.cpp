@@ -43,45 +43,46 @@ bool MotorBLEServer::init() {
             return false;
         }
         
-        // 创建配置特征值
-        pConfigCharacteristic = pService->createCharacteristic(
-            CONFIG_CHAR_UUID,
-            BLECharacteristic::PROPERTY_READ | 
+        // 创建运行时长特征值
+        pRunDurationCharacteristic = pService->createCharacteristic(
+            RUN_DURATION_CHAR_UUID,
+            BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_NOTIFY
         );
-        pConfigCharacteristic->setCallbacks(new CharacteristicCallbacks(this, CONFIG_CHAR_UUID));
+        pRunDurationCharacteristic->setCallbacks(new CharacteristicCallbacks(this, RUN_DURATION_CHAR_UUID));
         
-        // 创建命令特征值
-        pCommandCharacteristic = pService->createCharacteristic(
-            COMMAND_CHAR_UUID,
-            BLECharacteristic::PROPERTY_READ | 
+        // 创建停止间隔特征值
+        pStopIntervalCharacteristic = pService->createCharacteristic(
+            STOP_INTERVAL_CHAR_UUID,
+            BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_NOTIFY
         );
-        pCommandCharacteristic->setCallbacks(new CharacteristicCallbacks(this, COMMAND_CHAR_UUID));
+        pStopIntervalCharacteristic->setCallbacks(new CharacteristicCallbacks(this, STOP_INTERVAL_CHAR_UUID));
         
-        // 创建状态特征值
-        pStatusCharacteristic = pService->createCharacteristic(
-            STATUS_CHAR_UUID,
-            BLECharacteristic::PROPERTY_READ | 
+        // 创建系统控制特征值
+        pSystemControlCharacteristic = pService->createCharacteristic(
+            SYSTEM_CONTROL_CHAR_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_NOTIFY
         );
-        pStatusCharacteristic->setCallbacks(new CharacteristicCallbacks(this, STATUS_CHAR_UUID));
+        pSystemControlCharacteristic->setCallbacks(new CharacteristicCallbacks(this, SYSTEM_CONTROL_CHAR_UUID));
         
-        // 创建信息特征值
-        pInfoCharacteristic = pService->createCharacteristic(
-            INFO_CHAR_UUID,
-            BLECharacteristic::PROPERTY_READ | 
+        // 创建状态查询特征值
+        pStatusQueryCharacteristic = pService->createCharacteristic(
+            STATUS_QUERY_CHAR_UUID,
+            BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_NOTIFY
         );
-        pInfoCharacteristic->setCallbacks(new CharacteristicCallbacks(this, INFO_CHAR_UUID));
+        pStatusQueryCharacteristic->setCallbacks(new CharacteristicCallbacks(this, STATUS_QUERY_CHAR_UUID));
         
         // 设置初始值
-        pConfigCharacteristic->setValue("{}");
-        pCommandCharacteristic->setValue("{\"command\":\"none\"}");
-        pStatusCharacteristic->setValue(generateStatusJson().c_str());
-        pInfoCharacteristic->setValue(generateInfoJson().c_str());
+        pRunDurationCharacteristic->setValue("0");
+        pStopIntervalCharacteristic->setValue("0");
+        pSystemControlCharacteristic->setValue("0");
+        pStatusQueryCharacteristic->setValue(generateStatusJson().c_str());
         
         // 注册系统状态变更监听器
         stateManager.registerStateListener([this](const StateChangeEvent& event) {
@@ -159,9 +160,9 @@ bool MotorBLEServer::isConnected() const {
 
 // 发送状态通知
 void MotorBLEServer::sendStatusNotification(const String& status) {
-    if (pStatusCharacteristic && isConnected()) {
-        pStatusCharacteristic->setValue(status.c_str());
-        pStatusCharacteristic->notify();
+    if (pStatusQueryCharacteristic && isConnected()) {
+        pStatusQueryCharacteristic->setValue(status.c_str());
+        pStatusQueryCharacteristic->notify();
     }
 }
 
@@ -209,167 +210,122 @@ void MotorBLEServer::CharacteristicCallbacks::onWrite(BLECharacteristic* pCharac
     String strValue = String(value.c_str());
     LOG_INFO("收到BLE写入: %s = %s", charUUID, strValue.c_str());
     
-    if (strcmp(charUUID, CONFIG_CHAR_UUID) == 0) {
-        bleServer->handleConfigWrite(strValue);
-    } else if (strcmp(charUUID, COMMAND_CHAR_UUID) == 0) {
-        bleServer->handleCommandWrite(strValue);
+    if (strcmp(charUUID, RUN_DURATION_CHAR_UUID) == 0) {
+        bleServer->handleRunDurationWrite(strValue);
+    } else if (strcmp(charUUID, STOP_INTERVAL_CHAR_UUID) == 0) {
+        bleServer->handleStopIntervalWrite(strValue);
+    } else if (strcmp(charUUID, SYSTEM_CONTROL_CHAR_UUID) == 0) {
+        bleServer->handleSystemControlWrite(strValue);
     }
 }
 
 void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharacteristic) {
-    if (strcmp(charUUID, STATUS_CHAR_UUID) == 0) {
+    if (strcmp(charUUID, STATUS_QUERY_CHAR_UUID) == 0) {
         String statusJson = bleServer->generateStatusJson();
         pCharacteristic->setValue(statusJson.c_str());
-    } else if (strcmp(charUUID, INFO_CHAR_UUID) == 0) {
-        String infoJson = bleServer->generateInfoJson();
-        pCharacteristic->setValue(infoJson.c_str());
     }
 }
 
-// 处理配置写入
-void MotorBLEServer::handleConfigWrite(const String& value) {
+// 处理运行时长写入
+void MotorBLEServer::handleRunDurationWrite(const String& value) {
     try {
-        DynamicJsonDocument doc(512);
-        DeserializationError error = deserializeJson(doc, value);
-        
-        if (error) {
-            LOG_ERROR("配置JSON解析失败: %s", error.c_str());
+        uint32_t runDuration = atoi(value.c_str());
+        if (runDuration < 1 || runDuration > 9990) {
+            LOG_ERROR("运行时长超出范围: %u (有效范围: 1-9990)", runDuration);
             return;
         }
         
         ConfigManager& configManager = ConfigManager::getInstance();
         MotorConfig currentConfig = configManager.getConfig();
+        currentConfig.runDuration = runDuration;
         
-        // 更新配置参数
-        if (doc.containsKey("runDuration")) {
-            currentConfig.runDuration = doc["runDuration"];
-        }
-        if (doc.containsKey("stopDuration")) {
-            currentConfig.stopDuration = doc["stopDuration"];
-        }
-        if (doc.containsKey("cycleCount")) {
-            currentConfig.cycleCount = doc["cycleCount"];
-        }
-        if (doc.containsKey("autoStart")) {
-            currentConfig.autoStart = doc["autoStart"];
-        }
-        
-        // 应用新配置
-        // 应用新配置
         configManager.updateConfig(currentConfig);
         configManager.saveConfig();
         
-        // === 5.3.1 参数设置的即时生效逻辑 ===
         // 立即通知电机控制器应用新配置
         MotorController& motorController = MotorController::getInstance();
         motorController.updateConfig(currentConfig);
         
-        LOG_INFO("配置已更新并即时生效: 运行=%u, 停止=%u, 循环=%u, 自动启动=%s",
-                 currentConfig.runDuration, currentConfig.stopDuration, currentConfig.cycleCount,
-                 currentConfig.autoStart ? "是" : "否");
+        LOG_INFO("运行时长已更新: %u (100毫秒单位)", runDuration);
         
-        // 立即推送更新后的状态给BLE客户端
-        if (isConnected()) {
-            String statusJson = generateStatusJson();
-            sendStatusNotification(statusJson);
-            LOG_INFO("配置更新后状态已推送给BLE客户端");
+        // 立即推送更新后的状态
+        if (this->isConnected()) {
+            String statusJson = this->generateStatusJson();
+            this->sendStatusNotification(statusJson);
         }
     } catch (const std::exception& e) {
-        LOG_ERROR("处理配置写入异常: %s", e.what());
+        LOG_ERROR("处理运行时长写入异常: %s", e.what());
     }
 }
 
-// 处理命令写入
-void MotorBLEServer::handleCommandWrite(const String& value) {
+// 处理停止间隔写入
+void MotorBLEServer::handleStopIntervalWrite(const String& value) {
     try {
-        DynamicJsonDocument doc(256);
-        DeserializationError error = deserializeJson(doc, value);
-        
-        if (error) {
-            LOG_ERROR("命令JSON解析失败: %s", error.c_str());
+        uint32_t stopInterval = atoi(value.c_str());
+        if (stopInterval > 999) {
+            LOG_ERROR("停止间隔超出范围: %u (有效范围: 0-999)", stopInterval);
             return;
         }
         
-        const char* command = doc["command"];
-        if (!command) {
-            LOG_ERROR("命令格式错误");
-            return;
-        }
+        ConfigManager& configManager = ConfigManager::getInstance();
+        MotorConfig currentConfig = configManager.getConfig();
+        currentConfig.stopDuration = stopInterval;
         
-        // === 5.3.2 手动启动/停止命令的优先级处理 ===
+        configManager.updateConfig(currentConfig);
+        configManager.saveConfig();
+        
+        // 立即通知电机控制器应用新配置
         MotorController& motorController = MotorController::getInstance();
-        MotorControllerState currentState = motorController.getCurrentState();
+        motorController.updateConfig(currentConfig);
         
-        if (strcmp(command, "start") == 0) {
-            // 启动命令优先级处理
-            if (currentState == MotorControllerState::STOPPED ||
-                currentState == MotorControllerState::STOPPING) {
-                bool success = motorController.startMotor();
-                if (success) {
-                    LOG_INFO("手动启动命令执行成功");
-                    // 立即推送状态更新
-                    if (isConnected()) {
-                        String statusJson = generateStatusJson();
-                        sendStatusNotification(statusJson);
-                    }
-                } else {
-                    LOG_ERROR("手动启动命令执行失败: %s", motorController.getLastError());
-                }
-            } else if (currentState == MotorControllerState::RUNNING ||
-                       currentState == MotorControllerState::STARTING) {
-                LOG_WARN("电机已在运行中，忽略重复启动命令");
-            } else {
-                LOG_WARN("电机处于错误状态，无法启动");
-            }
-            
-        } else if (strcmp(command, "stop") == 0) {
-            // 停止命令优先级处理（最高优先级，可以中断任何状态）
-            if (currentState != MotorControllerState::STOPPED) {
-                bool success = motorController.stopMotor();
-                if (success) {
-                    LOG_INFO("手动停止命令执行成功（优先级处理）");
-                    // 立即推送状态更新
-                    if (isConnected()) {
-                        String statusJson = generateStatusJson();
-                        sendStatusNotification(statusJson);
-                    }
-                } else {
-                    LOG_ERROR("手动停止命令执行失败: %s", motorController.getLastError());
-                }
-            } else {
-                LOG_WARN("电机已停止，忽略重复停止命令");
-            }
-            
-        } else if (strcmp(command, "reset") == 0) {
-            // 重置命令优先级处理
-            if (currentState == MotorControllerState::STOPPED) {
-                motorController.resetCycleCount();
-                LOG_INFO("循环计数器重置命令执行成功");
-                // 立即推送状态更新
-                if (isConnected()) {
-                    String statusJson = generateStatusJson();
-                    sendStatusNotification(statusJson);
-                }
-            } else {
-                LOG_WARN("电机运行中，无法重置循环计数器，请先停止电机");
-            }
-            
-        } else if (strcmp(command, "force_stop") == 0) {
-            // 强制停止命令（紧急停止，最高优先级）
-            motorController.stopMotor();
-            LOG_INFO("强制停止命令执行（紧急停止）");
-            // 立即推送状态更新
-            if (isConnected()) {
-                String statusJson = generateStatusJson();
-                sendStatusNotification(statusJson);
-            }
-            
-        } else {
-            LOG_WARN("未知命令: %s", command);
+        LOG_INFO("停止间隔已更新: %u 秒", stopInterval);
+        
+        // 立即推送更新后的状态
+        if (this->isConnected()) {
+            String statusJson = this->generateStatusJson();
+            this->sendStatusNotification(statusJson);
+        }
+    } catch (const std::exception& e) {
+        LOG_ERROR("处理停止间隔写入异常: %s", e.what());
+    }
+}
+
+// 处理系统控制写入
+void MotorBLEServer::handleSystemControlWrite(const String& value) {
+    try {
+        uint8_t control = atoi(value.c_str());
+        if (control > 1) {
+            LOG_ERROR("系统控制值无效: %u (有效值: 0=停止, 1=启动)", control);
+            return;
         }
         
+        MotorController& motorController = MotorController::getInstance();
+        
+        if (control == 1) {
+            // 启动命令
+            bool success = motorController.startMotor();
+            if (success) {
+                LOG_INFO("系统控制: 启动命令执行成功");
+            } else {
+                LOG_ERROR("系统控制: 启动命令执行失败: %s", motorController.getLastError());
+            }
+        } else {
+            // 停止命令
+            bool success = motorController.stopMotor();
+            if (success) {
+                LOG_INFO("系统控制: 停止命令执行成功");
+            } else {
+                LOG_ERROR("系统控制: 停止命令执行失败: %s", motorController.getLastError());
+            }
+        }
+        
+        // 立即推送更新后的状态
+        if (this->isConnected()) {
+            String statusJson = this->generateStatusJson();
+            this->sendStatusNotification(statusJson);
+        }
     } catch (const std::exception& e) {
-        LOG_ERROR("处理命令写入异常: %s", e.what());
+        LOG_ERROR("处理系统控制写入异常: %s", e.what());
     }
 }
 
