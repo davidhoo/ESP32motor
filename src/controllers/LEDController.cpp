@@ -10,29 +10,25 @@ const uint8_t LEDController::COLOR_YELLOW[3] = {255, 255, 0};
 const uint8_t LEDController::COLOR_PURPLE[3] = {255, 0, 255};
 const uint8_t LEDController::COLOR_OFF[3] = {0, 0, 0};
 
-LEDController::LEDController() 
-    : ws2812(nullptr)
+LEDController::LEDController()
+    : ws2812(std::unique_ptr<WS2812Driver>(new WS2812Driver(21, 1)))  // GPIO 21, 1个LED
     , timer(TimerDriver::getInstance())
     , currentState(LEDState::SYSTEM_INIT)
     , isBlinking(false)
     , ledOn(false)
     , blinkCount(0)
     , maxBlinkCount(0) {
-    ws2812 = new WS2812Driver(21, 1);  // GPIO 21, 1个LED
 }
 
 LEDController::~LEDController() {
     stop();
-    if (ws2812 != nullptr) {
-        delete ws2812;
-        ws2812 = nullptr;
-    }
+    // 智能指针自动释放资源，无需手动delete
 }
 
 bool LEDController::init() {
     LOG_TAG_INFO("LEDController", "初始化LED控制器...");
     
-    if (ws2812 == nullptr) {
+    if (!ws2812) {
         LOG_TAG_ERROR("LEDController", "WS2812驱动未初始化");
         return false;
     }
@@ -192,7 +188,7 @@ uint32_t LEDController::getBlinkIntervalForState(LEDState state) {
 }
 
 void LEDController::setLEDColor(const uint8_t color[3]) {
-    if (ws2812 != nullptr) {
+    if (ws2812) {
         ws2812->setColor(0, color[0], color[1], color[2]);
         ws2812->show();
     }
