@@ -1,5 +1,6 @@
 #include "MainController.h"
 #include "common/Logger.h"
+#include "../common/EventManager.h"
 #include <Arduino.h>
 
 // 单例实例
@@ -35,7 +36,30 @@ bool MainController::init() {
     
     Logger::getInstance().info("MainController", "开始系统初始化...");
     
+    // 初始化日志系统配置
+    LoggerConfig logConfig;
+    logConfig.showTimestamp = LOG_SHOW_TIMESTAMP;
+    logConfig.showLevel = LOG_SHOW_LEVEL;
+    logConfig.showTag = LOG_SHOW_TAG;
+    logConfig.useColors = LOG_ENABLE_COLORS;
+    logConfig.useMilliseconds = LOG_SHOW_MILLISECONDS;
+    logConfig.bufferSize = LOG_BUFFER_SIZE;
+    
+    Logger::getInstance().begin(&Serial, LOG_DEFAULT_LEVEL, logConfig);
+    
+    Logger::getInstance().info("MainController", "=== ESP32 电机控制系统启动 ===");
+    Logger::getInstance().info("MainController", "固件版本: 1.0.0");
+    Logger::getInstance().info("MainController", "编译时间: " __DATE__ " " __TIME__);
+    Logger::getInstance().info("MainController", "生产环境模式");
+    
     // 按照依赖顺序初始化模块
+    // 0. 事件管理器 - 最先初始化，其他模块可能使用事件系统
+    if (!initializeEventManager()) {
+        Logger::getInstance().error("MainController", "事件管理器初始化失败");
+        cleanup();
+        return false;
+    }
+    
     // 1. 配置管理器 - 其他模块依赖配置
     if (!initializeConfigManager()) {
         Logger::getInstance().error("MainController", "配置管理器初始化失败");
@@ -64,6 +88,9 @@ bool MainController::init() {
         return false;
     }
     
+    // 5. 设置事件监听器
+    setupEventListeners();
+    
     initialized = true;
     Logger::getInstance().info("MainController", "系统初始化完成");
     
@@ -85,7 +112,13 @@ void MainController::run() {
     running = true;
     Logger::getInstance().info("MainController", "系统开始运行");
     
+    // 发布系统启动事件
+    EventManager::getInstance().publish(EventData(EventType::SYSTEM_STARTUP, "MainController", "系统启动"));
+    
     while (running) {
+        // 处理事件队列
+        EventManager::getInstance().processEvents();
+        
         // 更新BLE通信
         if (bleServerInitialized) {
             MotorBLEServer::getInstance().update();
@@ -104,6 +137,9 @@ void MainController::run() {
         // 简单的延时，避免CPU占用过高
         delay(10);
     }
+    
+    // 发布系统关闭事件
+    EventManager::getInstance().publish(EventData(EventType::SYSTEM_SHUTDOWN, "MainController", "系统关闭"));
     
     Logger::getInstance().info("MainController", "系统主循环结束");
 }
@@ -238,4 +274,170 @@ void MainController::cleanup() {
     
     initialized = false;
     Logger::getInstance().info("MainController", "资源清理完成");
+}
+
+// 初始化事件管理器
+bool MainController::initializeEventManager() {
+    Logger::getInstance().info("MainController", "正在初始化事件管理器...");
+    
+    try {
+        EventManager& eventManager = EventManager::getInstance();
+        
+        if (!eventManager.initialize()) {
+            Logger::getInstance().error("MainController", "事件管理器初始化失败");
+            return false;
+        }
+        
+        Logger::getInstance().info("MainController", "事件管理器初始化成功");
+        return true;
+        
+    } catch (...) {
+        Logger::getInstance().error("MainController", "事件管理器初始化发生异常");
+        return false;
+    }
+}
+
+// 设置事件监听器
+void MainController::setupEventListeners() {
+    Logger::getInstance().info("MainController", "设置事件监听器...");
+    
+    EventManager& eventManager = EventManager::getInstance();
+    
+    // 订阅系统事件
+    eventManager.subscribe(EventType::SYSTEM_STARTUP, [this](const EventData& event) {
+        handleSystemEvent(event);
+    });
+    
+    eventManager.subscribe(EventType::SYSTEM_SHUTDOWN, [this](const EventData& event) {
+        handleSystemEvent(event);
+    });
+    
+    // 订阅电机事件
+    eventManager.subscribe(EventType::MOTOR_START, [this](const EventData& event) {
+        handleMotorEvent(event);
+    });
+    
+    eventManager.subscribe(EventType::MOTOR_STOP, [this](const EventData& event) {
+        handleMotorEvent(event);
+    });
+    
+    eventManager.subscribe(EventType::MOTOR_SPEED_CHANGED, [this](const EventData& event) {
+        handleMotorEvent(event);
+    });
+    
+    // 订阅BLE事件
+    eventManager.subscribe(EventType::BLE_CONNECTED, [this](const EventData& event) {
+        handleBLEEvent(event);
+    });
+    
+    eventManager.subscribe(EventType::BLE_DISCONNECTED, [this](const EventData& event) {
+        handleBLEEvent(event);
+    });
+    
+    // 订阅配置事件
+    eventManager.subscribe(EventType::CONFIG_CHANGED, [this](const EventData& event) {
+        handleConfigEvent(event);
+    });
+    
+    Logger::getInstance().info("MainController", "事件监听器设置完成");
+}
+
+// 处理系统事件
+void MainController::handleSystemEvent(const EventData& event) {
+    String logMsg = "系统事件: " + EventManager::getEventTypeName(event.type);
+    if (!event.message.isEmpty()) {
+        logMsg += " - " + event.message;
+    }
+    Logger::getInstance().info("MainController", logMsg);
+    
+    switch (event.type) {
+        case EventType::SYSTEM_STARTUP:
+            if (ledControllerInitialized) {
+                ledController.setState(LEDState::BLE_DISCONNECTED);
+            }
+            break;
+            
+        case EventType::SYSTEM_SHUTDOWN:
+            if (ledControllerInitialized) {
+                ledController.setState(LEDState::ERROR_STATE);
+            }
+            break;
+            
+        default:
+            break;
+    }
+}
+
+// 处理电机事件
+void MainController::handleMotorEvent(const EventData& event) {
+    String logMsg = "电机事件: " + EventManager::getEventTypeName(event.type);
+    if (!event.message.isEmpty()) {
+        logMsg += " - " + event.message;
+    }
+    if (event.value != 0) {
+        logMsg += " (值: " + String(event.value) + ")";
+    }
+    Logger::getInstance().info("MainController", logMsg);
+    
+    switch (event.type) {
+        case EventType::MOTOR_START:
+            if (ledControllerInitialized) {
+                ledController.setState(LEDState::MOTOR_RUNNING);
+            }
+            break;
+            
+        case EventType::MOTOR_STOP:
+            if (ledControllerInitialized) {
+                ledController.setState(LEDState::BLE_CONNECTED);
+            }
+            break;
+            
+        case EventType::MOTOR_SPEED_CHANGED:
+            // 可以在这里添加速度变化的视觉反馈
+            break;
+            
+        default:
+            break;
+    }
+}
+
+// 处理BLE事件
+void MainController::handleBLEEvent(const EventData& event) {
+    String logMsg = "BLE事件: " + EventManager::getEventTypeName(event.type);
+    if (!event.message.isEmpty()) {
+        logMsg += " - " + event.message;
+    }
+    Logger::getInstance().info("MainController", logMsg);
+    
+    switch (event.type) {
+        case EventType::BLE_CONNECTED:
+            if (ledControllerInitialized) {
+                ledController.setState(LEDState::BLE_CONNECTED);
+            }
+            break;
+            
+        case EventType::BLE_DISCONNECTED:
+            if (ledControllerInitialized) {
+                ledController.setState(LEDState::BLE_DISCONNECTED);
+            }
+            break;
+            
+        default:
+            break;
+    }
+}
+
+// 处理配置事件
+void MainController::handleConfigEvent(const EventData& event) {
+    String logMsg = "配置事件: " + EventManager::getEventTypeName(event.type);
+    if (!event.message.isEmpty()) {
+        logMsg += " - " + event.message;
+    }
+    Logger::getInstance().info("MainController", logMsg);
+    
+    // 配置改变时，可以重新加载相关模块
+    if (event.type == EventType::CONFIG_CHANGED) {
+        Logger::getInstance().info("MainController", "配置已更新，重新应用设置...");
+        // 这里可以触发相关模块重新加载配置
+    }
 }
