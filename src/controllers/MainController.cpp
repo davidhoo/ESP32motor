@@ -290,6 +290,17 @@ bool MainController::initializeMotorController() {
             return false;
         }
         
+        // 确保电机控制器使用最新的配置（如果配置管理器已初始化）
+        if (configManagerInitialized) {
+            try {
+                const MotorConfig& currentConfig = ConfigManager::getInstance().getConfig();
+                motor.updateConfig(currentConfig);
+                Logger::getInstance().info("MainController", "电机控制器已同步最新配置");
+            } catch (...) {
+                Logger::getInstance().warn("MainController", "同步配置到电机控制器时发生异常，使用默认配置");
+            }
+        }
+        
         motorControllerInitialized = true;
         Logger::getInstance().info("MainController", "电机控制器初始化成功");
         return true;

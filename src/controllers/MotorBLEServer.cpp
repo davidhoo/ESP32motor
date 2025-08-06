@@ -235,9 +235,19 @@ void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharact
         MotorConfig config = configManager.getConfig();
         pCharacteristic->setValue(String(config.stopDuration).c_str());
     } else if (strcmp(charUUID, SYSTEM_CONTROL_CHAR_UUID) == 0) {
-        // 系统控制开关状态，独立于电机实际运行状态
-        std::string currentValue = pCharacteristic->getValue();
-        pCharacteristic->setValue(currentValue);
+        // 系统控制开关状态，应该反映电机的实际运行状态
+        MotorController& motorController = MotorController::getInstance();
+        ConfigManager& configManager = ConfigManager::getInstance();
+        MotorConfig config = configManager.getConfig();
+        
+        // 如果自动启动被禁用且电机停止，返回0；否则根据电机状态返回
+        if (!config.autoStart && !motorController.isRunning()) {
+            pCharacteristic->setValue("0");
+        } else if (motorController.isRunning()) {
+            pCharacteristic->setValue("1");
+        } else {
+            pCharacteristic->setValue("0");
+        }
     } else if (strcmp(charUUID, STATUS_QUERY_CHAR_UUID) == 0) {
         String statusJson = bleServer->generateStatusJson();
         pCharacteristic->setValue(statusJson.c_str());
@@ -337,14 +347,28 @@ void MotorBLEServer::handleSystemControlWrite(const String& value) {
             // 启动命令 - 重新启用自动启动并启动电机
             LOG_INFO("执行启动命令...");
             
-            // 恢复自动启动功能（如果之前被禁用）
+            // 关键修复：无论当前状态如何，都强制恢复自动启动功能
             MotorConfig currentConfig = configManager.getConfig();
-            if (!currentConfig.autoStart) {
-                LOG_INFO("🔄 重新启用自动启动功能");
+            MotorConfig motorRuntimeConfig = motorController.getCurrentConfig();
+            
+            // 检查ConfigManager和MotorController的配置是否同步
+            if (!currentConfig.autoStart || !motorRuntimeConfig.autoStart) {
+                LOG_INFO("🔄 重新启用自动启动功能 (ConfigManager: %s, MotorController: %s)",
+                         currentConfig.autoStart ? "启用" : "禁用",
+                         motorRuntimeConfig.autoStart ? "启用" : "禁用");
+                
+                // 强制设置为启用状态
                 currentConfig.autoStart = true;
-                motorController.updateConfig(currentConfig);
+                
+                // 先更新ConfigManager并保存到NVS
                 configManager.updateConfig(currentConfig);
-                configManager.saveConfig(); // 保存到NVS
+                configManager.saveConfig();
+                
+                // 立即同步到MotorController的运行时配置
+                motorController.updateConfig(currentConfig);
+                LOG_INFO("✅ 自动启动功能已恢复并同步到运行时配置");
+            } else {
+                LOG_INFO("ℹ️  自动启动功能已启用，无需修改");
             }
             
             bool success = motorController.startMotor();
@@ -372,6 +396,11 @@ void MotorBLEServer::handleSystemControlWrite(const String& value) {
             if (success) {
                 LOG_INFO("✅ 系统控制: 停止命令执行成功，电机已停止");
                 LOG_INFO("ℹ️  电机将保持停止状态，直到收到启动命令");
+                
+                // 停止成功后，将BLE特性值设置为0
+                if (pSystemControlCharacteristic) {
+                    pSystemControlCharacteristic->setValue("0");
+                }
             } else {
                 LOG_ERROR("❌ 系统控制: 停止命令执行失败: %s", motorController.getLastError());
                 // 如果停止失败，恢复自动启动设置
@@ -380,9 +409,17 @@ void MotorBLEServer::handleSystemControlWrite(const String& value) {
             }
         }
         
-        // 更新BLE特征值以反映当前控制状态
+        // 更新BLE特征值以反映当前实际状态
         if (pSystemControlCharacteristic) {
-            pSystemControlCharacteristic->setValue(String(control).c_str());
+            // 根据电机实际状态设置特性值
+            if (control == 0 && motorController.getCurrentState() == MotorControllerState::STOPPED) {
+                pSystemControlCharacteristic->setValue("0");
+            } else if (control == 1 && (motorController.isRunning() || motorController.getCurrentState() == MotorControllerState::STARTING)) {
+                pSystemControlCharacteristic->setValue("1");
+            } else {
+                // 如果命令执行失败，保持原状态
+                pSystemControlCharacteristic->setValue(motorController.isRunning() ? "1" : "0");
+            }
         }
         
         // 立即推送更新后的状态
