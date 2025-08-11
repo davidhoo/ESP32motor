@@ -133,6 +133,7 @@ private:
     
     // 内部方法
     void setError(const char* error);
+    void configureBLELowPowerDirect();
     
     // === 5.4.3 BLE断连时的系统稳定运行机制 ===
     void handleDisconnection();
