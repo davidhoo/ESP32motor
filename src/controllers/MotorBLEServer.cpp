@@ -3,6 +3,7 @@
 #include "../controllers/ConfigManager.h"
 #include "../common/Logger.h"
 #include "../common/EventManager.h"
+#include "../common/PowerManager.h"
 #include <ArduinoJson.h>
 
 // 单例实例
@@ -25,6 +26,9 @@ bool MotorBLEServer::init() {
     try {
         // 初始化BLE设备
         BLEDevice::init(DEVICE_NAME);
+        
+        // 直接配置BLE低功耗参数
+        configureBLELowPowerDirect();
         
         // 创建BLE服务器
         pServer = BLEDevice::createServer();
@@ -114,14 +118,22 @@ void MotorBLEServer::start() {
     
     pService->start();
     
-    // 启动广播
+    // 启动低功耗广播
     BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
     if (pAdvertising) {
         pAdvertising->addServiceUUID(SERVICE_UUID);
         pAdvertising->setScanResponse(false);
-        pAdvertising->setMinPreferred(0x0);
+        
+        // 设置低功耗广播间隔 (单位: 0.625ms)
+        // 1600 = 1秒广播间隔，大幅降低功耗
+        pAdvertising->setMinInterval(1600);  // 1秒
+        pAdvertising->setMaxInterval(3200);  // 2秒
+        
+        // 直接设置最低发射功率
+        BLEDevice::setPower(ESP_PWR_LVL_N12); // -12dBm 最低功耗
+        
         BLEDevice::startAdvertising();
-        LOG_INFO("BLE广播已启动");
+        LOG_INFO("BLE低功耗广播已启动 - 间隔: 1-2秒, 功率: -12dBm");
     }
 }
 
@@ -137,24 +149,24 @@ void MotorBLEServer::update() {
         return;
     }
     
-    // === 5.3.3 实时状态推送机制 ===
+    // === 简化的低功耗状态推送机制 ===
     static uint32_t lastStatusUpdate = 0;
-    static uint32_t statusUpdateInterval = 1000; // 1秒定时推送间隔
+    static uint32_t statusUpdateInterval = 5000; // 固定5秒推送间隔（低功耗）
     
     uint32_t currentTime = millis();
     
-    // 定时状态推送（每秒推送一次，确保客户端获得最新状态）
+    // 低功耗定时状态推送
     if (currentTime - lastStatusUpdate >= statusUpdateInterval) {
         String statusJson = generateStatusJson();
         sendStatusNotification(statusJson);
         lastStatusUpdate = currentTime;
         
-        // 动态调整推送频率：电机运行时更频繁推送
+        // 简化的推送频率调整：仅根据电机状态
         MotorController& motorController = MotorController::getInstance();
         if (motorController.isRunning()) {
-            statusUpdateInterval = 500; // 运行时每0.5秒推送
+            statusUpdateInterval = 3000; // 运行时每3秒推送
         } else {
-            statusUpdateInterval = 2000; // 停止时每2秒推送
+            statusUpdateInterval = 8000; // 停止时每8秒推送
         }
     }
 }
@@ -493,6 +505,19 @@ void MotorBLEServer::setError(const char* error) {
     strncpy(lastError, error, sizeof(lastError) - 1);
     lastError[sizeof(lastError) - 1] = '\0';
     LOG_ERROR("BLE错误: %s", error);
+}
+
+// 直接配置BLE低功耗参数
+void MotorBLEServer::configureBLELowPowerDirect() {
+    LOG_INFO("直接配置BLE低功耗参数...");
+    
+    // 设置BLE发射功率为最低
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_DEFAULT, ESP_PWR_LVL_N12);  // -12dBm
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, ESP_PWR_LVL_N12);     // 广播功率
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_SCAN, ESP_PWR_LVL_N12);    // 扫描功率
+    esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_CONN_HDL0, ESP_PWR_LVL_N12); // 连接功率
+    
+    LOG_INFO("BLE低功耗配置完成 - 发射功率: -12dBm");
 }
 
 // 系统状态变更回调

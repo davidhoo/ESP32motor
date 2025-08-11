@@ -1,6 +1,7 @@
 #include "MainController.h"
 #include "common/Logger.h"
 #include "../common/EventManager.h"
+#include "../common/PowerManager.h"
 #include <Arduino.h>
 #include <cstring>
 
@@ -122,14 +123,19 @@ bool MainController::init() {
     Logger::getInstance().info("MainController", "步骤6: 设置事件监听器...");
     setupEventListeners();
     
+    // 步骤7: 启用低功耗模式
+    Logger::getInstance().info("MainController", "步骤7: 启用低功耗模式...");
+    PowerManager::enableLowPowerMode();
+    Logger::getInstance().info("MainController", "低功耗模式已启用 - BLE直接初始化为低功耗状态");
+    
     initialized = true;
     Logger::getInstance().info("MainController", "=== 系统启动流程完成 ===");
     
-    // 步骤7: 电机自动启动（如果配置了自动启动）
+    // 步骤8: 电机自动启动（如果配置了自动启动）
     if (configManagerInitialized && motorControllerInitialized) {
         const MotorConfig& config = ConfigManager::getInstance().getConfig();
         if (config.autoStart) {
-            Logger::getInstance().info("MainController", "步骤7: 电机自动启动...");
+            Logger::getInstance().info("MainController", "步骤8: 电机自动启动...");
             MotorController::getInstance().startMotor();
             Logger::getInstance().info("MainController", "电机自动启动完成");
         } else {
@@ -206,6 +212,8 @@ void MainController::run() {
                 ledControllerInitialized = false;
             }
         }
+        
+        // 简化的功耗管理 - 无需温度监控，BLE已直接配置为低功耗模式
         
         // 简单的延时，避免CPU占用过高
         delay(10);
