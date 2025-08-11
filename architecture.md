@@ -66,7 +66,7 @@ public:
     bool init(uint8_t motor_pin);
     
     // 设置运行参数
-    void setRunDuration(uint32_t duration_100ms);
+    void setRunDuration(uint32_t duration_seconds);
     void setStopInterval(uint32_t interval_seconds);
     
     // 控制命令
@@ -75,19 +75,22 @@ public:
     
     // 状态查询
     bool isRunning() const;
-    uint32_t getCountdown() const;
-    uint32_t getCycleCount() const;
+    uint32_t getRemainingRunTime() const;
+    uint32_t getRemainingStopTime() const;
+    uint32_t getCurrentCycleCount() const;
+    MotorControllerState getCurrentState() const;
     
     // 定时器回调处理
     void onTimer();
     
 private:
-    enum State { STOPPED, RUNNING, PAUSED };
-    State current_state;
+    enum MotorControllerState { STOPPED, RUNNING, STOPPING, STARTING, ERROR };
+    MotorControllerState current_state;
     uint32_t run_duration;
     uint32_t stop_interval;
-    uint32_t countdown;
-    uint32_t cycle_count;
+    uint32_t remaining_run_time;
+    uint32_t remaining_stop_time;
+    uint32_t current_cycle_count;
 };
 ```
 
@@ -117,6 +120,32 @@ private:
     BLECharacteristic* system_control_char;
     BLECharacteristic* status_char;
 };
+```
+
+### 3.2.1 BLE特征服务数据格式
+
+| 特征名称 | UUID | 权限 | 数据格式 | 范围/示例 |
+|---------|------|------|----------|-----------|
+| 运行时长 | `2f7a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c6` | 读/写/通知 | 字符串格式的秒数 | "1" - "999" |
+| 停止间隔 | `3f8a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c7` | 读/写/通知 | 字符串格式的秒数 | "0" - "999" |
+| 系统控制 | `4f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c8` | 读/写/通知 | 字符串格式的控制命令 | "0"=停止, "1"=启动 |
+| 状态查询 | `5f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c9` | 读/通知 | JSON格式状态信息 | 见下方示例 |
+
+#### 状态查询JSON格式
+```json
+{
+  "state": 1,
+  "stateName": "RUNNING",
+  "remainingRunTime": 25,
+  "remainingStopTime": 0,
+  "currentCycleCount": 3,
+  "runDuration": 30,
+  "stopDuration": 10,
+  "cycleCount": 5,
+  "autoStart": true,
+  "uptime": 123456,
+  "freeHeap": 234567
+}
 ```
 
 ### 3.3 LEDController 接口
@@ -152,9 +181,10 @@ private:
 
 ```cpp
 struct MotorConfig {
-    uint32_t run_duration;    // 运行时长(100毫秒单位)
+    uint32_t run_duration;    // 运行时长(秒)
     uint32_t stop_interval;   // 停止间隔(秒)
     bool auto_start;          // 开机自动启动
+    uint32_t cycle_count;     // 循环次数
 };
 
 class ConfigManager {
