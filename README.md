@@ -1,6 +1,5 @@
 # ESP32-S3-Zero 电机定时控制系统
 
-[![PlatformIO CI](https://github.com/yourusername/esp32motor/workflows/PlatformIO%20CI/badge.svg)](https://github.com/yourusername/esp32motor/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PlatformIO](https://badges.registry.platformio.org/packages/platformio/platform/espressif32.svg)](https://registry.platformio.org/platforms/platformio/espressif32)
 
