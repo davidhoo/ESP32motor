@@ -369,7 +369,6 @@ pio run
 ### 获取帮助
 - 📖 [查看完整文档](docs/)
 - 🐛 [报告问题](https://github.com/davidhoo/esp32motor/issues)
-- 💬 [加入讨论](https://github.com/davidhoo/esp32motor/discussions)
 
 ## 🤝 贡献指南
 
@@ -412,5 +411,5 @@ pio run
 
 ---
 
-**维护者**: [@davidhoo](https://github.com/davidhoo)  
+**维护者**: [@David Hu](https://github.com/davidhoo)  
 **最后更新**: 2025-08-12
