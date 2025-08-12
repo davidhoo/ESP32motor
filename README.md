@@ -121,7 +121,7 @@ graph TB
 
 2. **克隆项目**
    ```bash
-   git clone https://github.com/yourusername/esp32motor.git
+   git clone https://github.com/davidhoo/esp32motor.git
    cd esp32motor
    ```
 
@@ -368,8 +368,8 @@ pio run
 
 ### 获取帮助
 - 📖 [查看完整文档](docs/)
-- 🐛 [报告问题](https://github.com/yourusername/esp32motor/issues)
-- 💬 [加入讨论](https://github.com/yourusername/esp32motor/discussions)
+- 🐛 [报告问题](https://github.com/davidhoo/esp32motor/issues)
+- 💬 [加入讨论](https://github.com/davidhoo/esp32motor/discussions)
 
 ## 🤝 贡献指南
 
@@ -405,13 +405,12 @@ pio run
 
 ## 📊 项目统计
 
-![GitHub stars](https://img.shields.io/github/stars/yourusername/esp32motor?style=social)
-![GitHub forks](https://img.shields.io/github/forks/yourusername/esp32motor?style=social)
-![GitHub issues](https://img.shields.io/github/issues/yourusername/esp32motor)
-![GitHub license](https://img.shields.io/github/license/yourusername/esp32motor)
+![GitHub stars](https://img.shields.io/github/stars/davidhoo/esp32motor?style=social)
+![GitHub forks](https://img.shields.io/github/forks/davidhoo/esp32motor?style=social)
+![GitHub issues](https://img.shields.io/github/issues/davidhoo/esp32motor)
+![GitHub license](https://img.shields.io/github/license/davidhoo/esp32motor)
 
 ---
 
-**开发团队**: ESP32 Motor Control Team  
-**维护者**: [@yourusername](https://github.com/yourusername)  
+**维护者**: [@davidhoo](https://github.com/davidhoo)  
 **最后更新**: 2025-08-12
