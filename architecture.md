@@ -144,7 +144,8 @@ private:
   "cycleCount": 5,
   "autoStart": true,
   "uptime": 123456,
-  "freeHeap": 234567
+  "freeHeap": 234567,
+  "chipTemperature": 32.5
 }
 ```
 

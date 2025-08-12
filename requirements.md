@@ -47,7 +47,8 @@
   "cycleCount": 100,            // 目标循环次数(0=无限循环)
   "autoStart": true,            // 是否自动启动
   "uptime": 3600,               // 系统运行时间(毫秒)
-  "freeHeap": 123456            // 可用内存(字节)
+  "freeHeap": 123456,           // 可用内存(字节)
+  "chipTemperature": 32.5       // 芯片温度(摄氏度)
 }
 ```
 
@@ -65,6 +66,7 @@
   "autoStart": true,
   "uptime": 3600,
   "freeHeap": 123456,
+  "chipTemperature": 32.5,
   "systemState": "RUNNING",
   "systemStateReason": "User command",
   "eventType": "system_state_change",

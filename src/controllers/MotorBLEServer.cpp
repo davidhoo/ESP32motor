@@ -480,6 +480,13 @@ String MotorBLEServer::generateStatusJson() {
     doc["uptime"] = millis();
     doc["freeHeap"] = ESP.getFreeHeap();
     
+    // 芯片温度信息（ESP32内置温度传感器）
+    #ifdef ESP32
+    doc["chipTemperature"] = temperatureRead();  // ESP32内置温度读取函数
+    #else
+    doc["chipTemperature"] = 0.0;  // 非ESP32平台默认值
+    #endif
+    
     String jsonStr;
     serializeJson(doc, jsonStr);
     return jsonStr;
