@@ -37,12 +37,43 @@
 ### 2.3 状态信息
 ```json
 {
-  "motor_state": "running",     // 电机状态: "stopped"/"running"
-  "run_duration": 30,           // 运行时长设置(秒)
-  "stop_interval": 60,          // 停止间隔设置(秒)
-  "countdown": 25,              // 倒计时(秒)，距离状态切换剩余时间
-  "cycle_count": 15,            // 已完成循环次数
-  "uptime": 3600                // 系统运行时间(秒)
+  "state": 1,                   // 电机状态码: 0=STOPPED, 1=RUNNING, 2=STOPPING, 3=STARTING, 4=ERROR
+  "stateName": "RUNNING",       // 电机状态名称
+  "runDuration": 30,            // 运行时长设置(秒)
+  "stopDuration": 60,           // 停止间隔设置(秒)
+  "remainingRunTime": 25,       // 剩余运行时间(秒)
+  "remainingStopTime": 0,       // 剩余停止时间(秒)
+  "currentCycleCount": 15,      // 当前循环次数
+  "cycleCount": 100,            // 目标循环次数(0=无限循环)
+  "autoStart": true,            // 是否自动启动
+  "uptime": 3600,               // 系统运行时间(毫秒)
+  "freeHeap": 123456            // 可用内存(字节)
+}
+```
+
+**状态变更事件推送格式**（仅在系统状态变更时推送）：
+```json
+{
+  "state": 1,
+  "stateName": "RUNNING",
+  "runDuration": 30,
+  "stopDuration": 60,
+  "remainingRunTime": 25,
+  "remainingStopTime": 0,
+  "currentCycleCount": 15,
+  "cycleCount": 100,
+  "autoStart": true,
+  "uptime": 3600,
+  "freeHeap": 123456,
+  "systemState": "RUNNING",
+  "systemStateReason": "User command",
+  "eventType": "system_state_change",
+  "eventTime": 3600,
+  "stateChange": {
+    "from": "IDLE",
+    "to": "RUNNING",
+    "reason": "User command"
+  }
 }
 ```
 
