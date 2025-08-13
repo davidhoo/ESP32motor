@@ -46,6 +46,11 @@ private:
      * @brief 测试配置处理
      */
     static void testConfigHandling();
+    
+    /**
+     * @brief 测试调速器状态JSON生成
+     */
+    static void testSpeedControllerStatusJsonGeneration();
 };
 
 #endif // MOTOR_BLE_SERVER_TEST_H

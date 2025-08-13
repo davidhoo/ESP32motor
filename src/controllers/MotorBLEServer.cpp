@@ -1,6 +1,7 @@
 #include "MotorBLEServer.h"
 #include "../controllers/MotorController.h"
 #include "../controllers/ConfigManager.h"
+#include "../controllers/MotorModbusController.h"
 #include "../common/Logger.h"
 #include "../common/EventManager.h"
 #include "../common/PowerManager.h"
@@ -17,6 +18,15 @@ MotorBLEServer::MotorBLEServer() : stateManager(StateManager::getInstance()) {
     disconnectionHandled = false;
     lastConnectionTime = 0;
     disconnectionCount = 0;
+    pMotorModbusController = new MotorModbusController();
+}
+
+// 析构函数
+MotorBLEServer::~MotorBLEServer() {
+    if (pMotorModbusController) {
+        delete pMotorModbusController;
+        pMotorModbusController = nullptr;
+    }
 }
 
 // 初始化BLE服务器
@@ -82,6 +92,14 @@ bool MotorBLEServer::init() {
         );
         pStatusQueryCharacteristic->setCallbacks(new CharacteristicCallbacks(this, STATUS_QUERY_CHAR_UUID));
         
+        // 创建调速器状态特征值
+        pSpeedControllerStatusCharacteristic = pService->createCharacteristic(
+            SPEED_CONTROLLER_STATUS_CHAR_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_NOTIFY
+        );
+        pSpeedControllerStatusCharacteristic->setCallbacks(new CharacteristicCallbacks(this, SPEED_CONTROLLER_STATUS_CHAR_UUID));
+        
         // 设置初始值 - 从ConfigManager获取实际配置值
         ConfigManager& configManager = ConfigManager::getInstance();
         MotorConfig config = configManager.getConfig();
@@ -90,6 +108,7 @@ bool MotorBLEServer::init() {
         pStopIntervalCharacteristic->setValue(String(config.stopDuration).c_str());
         pSystemControlCharacteristic->setValue("1");  // 系统控制初始为启动状态
         pStatusQueryCharacteristic->setValue(generateStatusJson().c_str());
+        pSpeedControllerStatusCharacteristic->setValue(generateSpeedControllerStatusJson().c_str());
         
         LOG_INFO("BLE特征值已初始化 - 运行时长: %lu秒, 停止间隔: %lu秒",
                  config.runDuration, config.stopDuration);
@@ -98,6 +117,16 @@ bool MotorBLEServer::init() {
         stateManager.registerStateListener([this](const StateChangeEvent& event) {
             this->onSystemStateChanged(event);
         });
+        
+        // 初始化MotorModbusController
+        if (pMotorModbusController) {
+            bool modbusInitSuccess = pMotorModbusController->begin(1); // 默认地址为1
+            if (modbusInitSuccess) {
+                LOG_INFO("MotorModbusController初始化成功");
+            } else {
+                LOG_WARN("MotorModbusController初始化失败: %s", pMotorModbusController->getLastError().c_str());
+            }
+        }
         
         LOG_INFO("BLE服务器初始化成功");
         return true;
@@ -151,7 +180,9 @@ void MotorBLEServer::update() {
     
     // === 简化的低功耗状态推送机制 ===
     static uint32_t lastStatusUpdate = 0;
+    static uint32_t lastSpeedControllerStatusUpdate = 0;
     static uint32_t statusUpdateInterval = 5000; // 固定5秒推送间隔（低功耗）
+    static uint32_t speedControllerStatusUpdateInterval = 10000; // 调速器状态每10秒推送一次
     
     uint32_t currentTime = millis();
     
@@ -169,6 +200,15 @@ void MotorBLEServer::update() {
             statusUpdateInterval = 8000; // 停止时每8秒推送
         }
     }
+    
+    // 调速器状态定时推送
+    if (currentTime - lastSpeedControllerStatusUpdate >= speedControllerStatusUpdateInterval) {
+        String speedControllerStatusJson = generateSpeedControllerStatusJson();
+        sendSpeedControllerStatusNotification(speedControllerStatusJson);
+        lastSpeedControllerStatusUpdate = currentTime;
+        
+        LOG_DEBUG("调速器状态已推送给BLE客户端");
+    }
 }
 
 // 获取连接状态
@@ -181,6 +221,14 @@ void MotorBLEServer::sendStatusNotification(const String& status) {
     if (pStatusQueryCharacteristic && isConnected()) {
         pStatusQueryCharacteristic->setValue(status.c_str());
         pStatusQueryCharacteristic->notify();
+    }
+}
+
+// 发送调速器状态通知
+void MotorBLEServer::sendSpeedControllerStatusNotification(const String& status) {
+    if (pSpeedControllerStatusCharacteristic && isConnected()) {
+        pSpeedControllerStatusCharacteristic->setValue(status.c_str());
+        pSpeedControllerStatusCharacteristic->notify();
     }
 }
 
@@ -263,6 +311,9 @@ void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharact
     } else if (strcmp(charUUID, STATUS_QUERY_CHAR_UUID) == 0) {
         String statusJson = bleServer->generateStatusJson();
         pCharacteristic->setValue(statusJson.c_str());
+    } else if (strcmp(charUUID, SPEED_CONTROLLER_STATUS_CHAR_UUID) == 0) {
+        String speedControllerStatusJson = bleServer->generateSpeedControllerStatusJson();
+        pCharacteristic->setValue(speedControllerStatusJson.c_str());
     }
 }
 
@@ -490,6 +541,114 @@ String MotorBLEServer::generateStatusJson() {
     String jsonStr;
     serializeJson(doc, jsonStr);
     return jsonStr;
+}
+
+// 生成调速器状态JSON
+String MotorBLEServer::generateSpeedControllerStatusJson() {
+    DynamicJsonDocument doc(1024);
+    
+    try {
+        if (!pMotorModbusController) {
+            LOG_WARN("MotorModbusController未初始化");
+            // 返回未初始化状态
+            doc["moduleAddress"] = 1;
+            doc["isRunning"] = false;
+            doc["frequency"] = 0;
+            doc["dutyCycle"] = 0;
+            doc["externalSwitch"] = false;
+            doc["analogControl"] = false;
+            doc["powerOnState"] = false;
+            doc["minOutput"] = 0;
+            doc["maxOutput"] = 100;
+            doc["softStartTime"] = 0;
+            doc["softStopTime"] = 0;
+            
+            JsonObject communication = doc.createNestedObject("communication");
+            communication["lastUpdateTime"] = 0;
+            communication["connectionStatus"] = "not_initialized";
+            communication["errorCount"] = 0;
+            communication["responseTime"] = 0;
+            
+            String jsonStr;
+            serializeJson(doc, jsonStr);
+            return jsonStr;
+        }
+        
+        // 获取配置信息
+        MotorModbusController::MotorConfig config;
+        bool configSuccess = pMotorModbusController->getConfig(config);
+        
+        // 获取运行状态
+        bool isRunning = false;
+        uint32_t frequency = 0;
+        uint8_t dutyCycle = 0;
+        
+        bool statusSuccess = pMotorModbusController->getRunStatus(isRunning) &&
+                           pMotorModbusController->getFrequency(frequency) &&
+                           pMotorModbusController->getDutyCycle(dutyCycle);
+        
+        // 填充JSON数据
+        doc["moduleAddress"] = configSuccess ? config.moduleAddress : 1;
+        doc["isRunning"] = statusSuccess ? isRunning : false;
+        doc["frequency"] = statusSuccess ? frequency : 0;
+        doc["dutyCycle"] = statusSuccess ? dutyCycle : 0;
+        doc["externalSwitch"] = configSuccess ? config.externalSwitch : false;
+        doc["analogControl"] = configSuccess ? config.analogControl : false;
+        doc["powerOnState"] = configSuccess ? config.powerOnState : false;
+        doc["minOutput"] = configSuccess ? config.minOutput : 0;
+        doc["maxOutput"] = configSuccess ? config.maxOutput : 100;
+        doc["softStartTime"] = configSuccess ? config.softStartTime : 0;
+        doc["softStopTime"] = configSuccess ? config.softStopTime : 0;
+        
+        // 通信状态信息
+        JsonObject communication = doc.createNestedObject("communication");
+        communication["lastUpdateTime"] = millis();
+        
+        if (configSuccess && statusSuccess) {
+            communication["connectionStatus"] = "connected";
+            communication["errorCount"] = 0;
+            communication["responseTime"] = 15; // 模拟响应时间
+        } else if (configSuccess || statusSuccess) {
+            communication["connectionStatus"] = "partial";
+            communication["errorCount"] = 1;
+            communication["responseTime"] = 50;
+        } else {
+            communication["connectionStatus"] = "disconnected";
+            communication["errorCount"] = 2;
+            communication["responseTime"] = 0;
+        }
+        
+        String jsonStr;
+        serializeJson(doc, jsonStr);
+        return jsonStr;
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR("生成调速器状态JSON异常: %s", e.what());
+        
+        // 异常情况下返回错误状态
+        doc.clear();
+        doc["moduleAddress"] = 1;
+        doc["isRunning"] = false;
+        doc["frequency"] = 0;
+        doc["dutyCycle"] = 0;
+        doc["externalSwitch"] = false;
+        doc["analogControl"] = false;
+        doc["powerOnState"] = false;
+        doc["minOutput"] = 0;
+        doc["maxOutput"] = 100;
+        doc["softStartTime"] = 0;
+        doc["softStopTime"] = 0;
+        
+        JsonObject communication = doc.createNestedObject("communication");
+        communication["lastUpdateTime"] = millis();
+        communication["connectionStatus"] = "error";
+        communication["errorCount"] = 1;
+        communication["responseTime"] = 0;
+        
+        String jsonStr;
+        serializeJson(doc, jsonStr);
+        return jsonStr;
+    }
 }
 
 // 生成信息JSON
