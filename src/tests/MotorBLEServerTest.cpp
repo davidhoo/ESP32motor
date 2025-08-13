@@ -4,26 +4,67 @@
 #include "../common/Logger.h"
 #include <ArduinoJson.h>
 
+// 自定义测试宏，避免与Unity框架冲突
+#define MB_TEST_ASSERT_EQUAL(expected, actual) \
+    if ((expected) != (actual)) { \
+        Serial.printf("TEST FAILED: Expected %d, got %d at %s:%d\n", \
+                     (int)(expected), (int)(actual), __FILE__, __LINE__); \
+    } else { \
+        Serial.printf("TEST PASSED: %s\n", __FUNCTION__); \
+    }
+
+#define MB_TEST_ASSERT_TRUE(condition) \
+    if (!(condition)) { \
+        Serial.printf("TEST FAILED: Expected true, got false at %s:%d\n", \
+                     __FILE__, __LINE__); \
+    } else { \
+        Serial.printf("TEST PASSED: %s\n", __FUNCTION__); \
+    }
+
+#define MB_TEST_ASSERT_FALSE(condition) \
+    if (condition) { \
+        Serial.printf("TEST FAILED: Expected false, got true at %s:%d\n", \
+                     __FILE__, __LINE__); \
+    } else { \
+        Serial.printf("TEST PASSED: %s\n", __FUNCTION__); \
+    }
+
+#define MB_TEST_ASSERT_NOT_NULL(pointer) \
+    if ((pointer) == NULL) { \
+        Serial.printf("TEST FAILED: Expected non-null pointer at %s:%d\n", \
+                     __FILE__, __LINE__); \
+    } else { \
+        Serial.printf("TEST PASSED: %s\n", __FUNCTION__); \
+    }
+
+#define MB_TEST_ASSERT_EQUAL_UINT32(expected, actual) \
+    if ((expected) != (actual)) { \
+        Serial.printf("TEST FAILED: Expected %lu, got %lu at %s:%d\n", \
+                     (unsigned long)(expected), (unsigned long)(actual), __FILE__, __LINE__); \
+    } else { \
+        Serial.printf("TEST PASSED: %s\n", __FUNCTION__); \
+    }
+
 void MotorBLEServerTest::runAllTests() {
-    UNITY_BEGIN();
+    Serial.println("=== 开始 MotorBLEServer 测试 ===");
     
-    RUN_TEST(testSingleton);
-    RUN_TEST(testInitialization);
-    RUN_TEST(testConfigJsonGeneration);
-    RUN_TEST(testInfoJsonGeneration);
-    RUN_TEST(testCommandHandling);
-    RUN_TEST(testConfigHandling);
-    RUN_TEST(testSpeedControllerStatusJsonGeneration);
+    testSingleton();
+    testInitialization();
+    testConfigJsonGeneration();
+    testInfoJsonGeneration();
+    testCommandHandling();
+    testConfigHandling();
+    testSpeedControllerStatusJsonGeneration();
     
-    UNITY_END();
+    Serial.println("=== MotorBLEServer 测试完成 ===");
 }
 
 void MotorBLEServerTest::testSingleton() {
     MotorBLEServer& instance1 = MotorBLEServer::getInstance();
     MotorBLEServer& instance2 = MotorBLEServer::getInstance();
     
-    TEST_ASSERT_EQUAL_PTR(&instance1, &instance2);
-    TEST_ASSERT_TRUE(&instance1 == &instance2);
+    MB_TEST_ASSERT_EQUAL((uintptr_t)&instance1, (uintptr_t)&instance2);
+    MB_TEST_ASSERT_TRUE(&instance1 == &instance2);
 }
 
 void MotorBLEServerTest::testInitialization() {
@@ -31,7 +72,7 @@ void MotorBLEServerTest::testInitialization() {
     
     // 注意：由于BLE需要硬件支持，这里只测试初始化不会崩溃
     // 实际BLE功能需要在真实硬件上测试
-    TEST_ASSERT_NOT_NULL(bleServer.getLastError());
+    MB_TEST_ASSERT_NOT_NULL(bleServer.getLastError());
 }
 
 void MotorBLEServerTest::testConfigJsonGeneration() {
@@ -39,22 +80,22 @@ void MotorBLEServerTest::testConfigJsonGeneration() {
     
     // 测试JSON生成
     String json = bleServer.generateStatusJson();
-    TEST_ASSERT_TRUE(json.length() > 0);
+    MB_TEST_ASSERT_TRUE(json.length() > 0);
     
     // 验证JSON格式
     DynamicJsonDocument doc(512);
     DeserializationError error = deserializeJson(doc, json);
-    TEST_ASSERT_FALSE(error);
+    MB_TEST_ASSERT_FALSE(error);
     
     // 验证必要字段
-    TEST_ASSERT_TRUE(doc.containsKey("state"));
-    TEST_ASSERT_TRUE(doc.containsKey("stateName"));
-    TEST_ASSERT_TRUE(doc.containsKey("remainingRunTime"));
-    TEST_ASSERT_TRUE(doc.containsKey("remainingStopTime"));
-    TEST_ASSERT_TRUE(doc.containsKey("currentCycleCount"));
-    TEST_ASSERT_TRUE(doc.containsKey("runDuration"));
-    TEST_ASSERT_TRUE(doc.containsKey("stopDuration"));
-    TEST_ASSERT_TRUE(doc.containsKey("autoStart"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("state"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("stateName"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("remainingRunTime"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("remainingStopTime"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("currentCycleCount"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("runDuration"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("stopDuration"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("autoStart"));
 }
 
 void MotorBLEServerTest::testInfoJsonGeneration() {
@@ -62,19 +103,19 @@ void MotorBLEServerTest::testInfoJsonGeneration() {
     
     // 测试信息JSON生成
     String json = bleServer.generateInfoJson();
-    TEST_ASSERT_TRUE(json.length() > 0);
+    MB_TEST_ASSERT_TRUE(json.length() > 0);
     
     // 验证JSON格式
     DynamicJsonDocument doc(256);
     DeserializationError error = deserializeJson(doc, json);
-    TEST_ASSERT_FALSE(error);
+    MB_TEST_ASSERT_FALSE(error);
     
     // 验证必要字段
-    TEST_ASSERT_TRUE(doc.containsKey("deviceName"));
-    TEST_ASSERT_TRUE(doc.containsKey("serviceUUID"));
-    TEST_ASSERT_TRUE(doc.containsKey("firmwareVersion"));
-    TEST_ASSERT_TRUE(doc.containsKey("hardware"));
-    TEST_ASSERT_TRUE(doc.containsKey("features"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("deviceName"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("serviceUUID"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("firmwareVersion"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("hardware"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("features"));
 }
 
 void MotorBLEServerTest::testCommandHandling() {
@@ -91,11 +132,11 @@ void MotorBLEServerTest::testCommandHandling() {
     
     // 测试启动命令 (1 = 启动)
     bleServer.handleSystemControlWrite("1");
-    TEST_ASSERT_TRUE(motorController.isRunning() || motorController.getCurrentState() == MotorControllerState::STARTING);
+    MB_TEST_ASSERT_TRUE(motorController.isRunning() || motorController.getCurrentState() == MotorControllerState::STARTING);
     
     // 测试停止命令 (0 = 停止)
     bleServer.handleSystemControlWrite("0");
-    TEST_ASSERT_TRUE(motorController.isStopped() || motorController.getCurrentState() == MotorControllerState::STOPPING);
+    MB_TEST_ASSERT_TRUE(motorController.isStopped() || motorController.getCurrentState() == MotorControllerState::STOPPING);
     
     // 注意：系统控制特征值只支持启动/停止，不支持重置命令
     // 重置功能需要通过其他方式实现，这里跳过重置测试
@@ -117,8 +158,8 @@ void MotorBLEServerTest::testConfigHandling() {
     bleServer.handleStopIntervalWrite("8");
     
     MotorConfig newConfig = configManager.getConfig();
-    TEST_ASSERT_EQUAL_UINT32(150, newConfig.runDuration);
-    TEST_ASSERT_EQUAL_UINT32(8, newConfig.stopDuration);
+    MB_TEST_ASSERT_EQUAL_UINT32(150, newConfig.runDuration);
+    MB_TEST_ASSERT_EQUAL_UINT32(8, newConfig.stopDuration);
     // 注意：autoStart 不能通过BLE特征值直接设置，需要其他方式
     
     // 恢复原始配置
@@ -131,46 +172,46 @@ void MotorBLEServerTest::testSpeedControllerStatusJsonGeneration() {
     
     // 测试调速器状态JSON生成
     String json = bleServer.generateSpeedControllerStatusJson();
-    TEST_ASSERT_TRUE(json.length() > 0);
+    MB_TEST_ASSERT_TRUE(json.length() > 0);
     
     // 验证JSON格式
     DynamicJsonDocument doc(1024);
     DeserializationError error = deserializeJson(doc, json);
-    TEST_ASSERT_FALSE(error);
+    MB_TEST_ASSERT_FALSE(error);
     
     // 验证必要字段
-    TEST_ASSERT_TRUE(doc.containsKey("moduleAddress"));
-    TEST_ASSERT_TRUE(doc.containsKey("isRunning"));
-    TEST_ASSERT_TRUE(doc.containsKey("frequency"));
-    TEST_ASSERT_TRUE(doc.containsKey("dutyCycle"));
-    TEST_ASSERT_TRUE(doc.containsKey("externalSwitch"));
-    TEST_ASSERT_TRUE(doc.containsKey("analogControl"));
-    TEST_ASSERT_TRUE(doc.containsKey("powerOnState"));
-    TEST_ASSERT_TRUE(doc.containsKey("minOutput"));
-    TEST_ASSERT_TRUE(doc.containsKey("maxOutput"));
-    TEST_ASSERT_TRUE(doc.containsKey("softStartTime"));
-    TEST_ASSERT_TRUE(doc.containsKey("softStopTime"));
-    TEST_ASSERT_TRUE(doc.containsKey("communication"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("moduleAddress"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("isRunning"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("frequency"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("dutyCycle"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("externalSwitch"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("analogControl"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("powerOnState"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("minOutput"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("maxOutput"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("softStartTime"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("softStopTime"));
+    MB_TEST_ASSERT_TRUE(doc.containsKey("communication"));
     
     // 验证通信状态字段
     JsonObject communication = doc["communication"];
-    TEST_ASSERT_TRUE(communication.containsKey("lastUpdateTime"));
-    TEST_ASSERT_TRUE(communication.containsKey("connectionStatus"));
-    TEST_ASSERT_TRUE(communication.containsKey("errorCount"));
-    TEST_ASSERT_TRUE(communication.containsKey("responseTime"));
+    MB_TEST_ASSERT_TRUE(communication.containsKey("lastUpdateTime"));
+    MB_TEST_ASSERT_TRUE(communication.containsKey("connectionStatus"));
+    MB_TEST_ASSERT_TRUE(communication.containsKey("errorCount"));
+    MB_TEST_ASSERT_TRUE(communication.containsKey("responseTime"));
     
     // 验证数据类型
-    TEST_ASSERT_TRUE(doc["moduleAddress"].is<int>());
-    TEST_ASSERT_TRUE(doc["isRunning"].is<bool>());
-    TEST_ASSERT_TRUE(doc["frequency"].is<int>());
-    TEST_ASSERT_TRUE(doc["dutyCycle"].is<int>());
-    TEST_ASSERT_TRUE(doc["externalSwitch"].is<bool>());
-    TEST_ASSERT_TRUE(doc["analogControl"].is<bool>());
-    TEST_ASSERT_TRUE(doc["powerOnState"].is<bool>());
-    TEST_ASSERT_TRUE(doc["minOutput"].is<int>());
-    TEST_ASSERT_TRUE(doc["maxOutput"].is<int>());
-    TEST_ASSERT_TRUE(doc["softStartTime"].is<int>());
-    TEST_ASSERT_TRUE(doc["softStopTime"].is<int>());
+    MB_TEST_ASSERT_TRUE(doc["moduleAddress"].is<int>());
+    MB_TEST_ASSERT_TRUE(doc["isRunning"].is<bool>());
+    MB_TEST_ASSERT_TRUE(doc["frequency"].is<int>());
+    MB_TEST_ASSERT_TRUE(doc["dutyCycle"].is<int>());
+    MB_TEST_ASSERT_TRUE(doc["externalSwitch"].is<bool>());
+    MB_TEST_ASSERT_TRUE(doc["analogControl"].is<bool>());
+    MB_TEST_ASSERT_TRUE(doc["powerOnState"].is<bool>());
+    MB_TEST_ASSERT_TRUE(doc["minOutput"].is<int>());
+    MB_TEST_ASSERT_TRUE(doc["maxOutput"].is<int>());
+    MB_TEST_ASSERT_TRUE(doc["softStartTime"].is<int>());
+    MB_TEST_ASSERT_TRUE(doc["softStopTime"].is<int>());
     
     LOG_INFO("调速器状态JSON测试通过: %s", json.c_str());
 }

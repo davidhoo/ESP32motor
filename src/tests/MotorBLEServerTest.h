@@ -2,7 +2,6 @@
 #define MOTOR_BLE_SERVER_TEST_H
 
 #include <Arduino.h>
-#include <unity.h>
 #include "../controllers/MotorBLEServer.h"
 
 /**
