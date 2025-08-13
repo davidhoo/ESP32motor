@@ -273,6 +273,24 @@ framework = arduino
 build_flags = -DENABLE_TESTING=1
 ```
 
+#### MODBUS测试环境
+```ini
+[env:modbus-test]
+platform = espressif32
+board = esp32-s3-devkitc-1
+framework = arduino
+build_flags = -DENABLE_MODBUS_TEST=1
+```
+
+#### 串口交互测试环境
+```ini
+[env:test-runner]
+platform = espressif32
+board = esp32-s3-devkitc-1
+framework = arduino
+build_flags = -DENABLE_TESTING=1
+```
+
 ### 运行测试
 ```bash
 # 运行所有测试
@@ -280,6 +298,14 @@ pio test -e test
 
 # 运行特定测试
 pio test -e test -f "test_motor_controller"
+
+# 运行MODBUS交互测试
+pio run -e modbus-test --target upload
+pio device monitor
+
+# 运行串口交互测试
+pio run -e test-runner --target upload
+pio device monitor
 ```
 
 ## 📖 使用示例
