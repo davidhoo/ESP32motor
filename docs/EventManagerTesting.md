@@ -21,13 +21,17 @@ EventManager测试覆盖了以下功能：
 ## 如何运行测试
 
 ### 方法1：使用测试主程序
-1. 修改 `src/test_main.cpp` 中的 `currentTestMode`：
-   ```cpp
-   TestMode currentTestMode = EVENT_MANAGER_TEST_MODE;
+1. 编译并上传程序到ESP32：
+   ```bash
+   pio run -e test -t upload
    ```
 
-2. 编译并上传程序到ESP32
-3. 打开串口监视器，波特率115200
+2. 打开串口监视器，波特率115200：
+   ```bash
+   pio device monitor
+   ```
+
+3. 在菜单中选择相应的测试选项（输入'9'运行EventManager测试）
 4. 观察测试输出结果
 
 ### 方法2：独立运行测试
@@ -59,7 +63,7 @@ EventManagerTest::runAllTests();
 
 - `src/tests/EventManagerTest.h` - 测试类头文件
 - `src/tests/EventManagerTest.cpp` - 测试类实现
-- `src/test_main.cpp` - 测试主程序（已集成EventManager测试）
+- `src/tests/test_runner.cpp` - 测试主程序（已集成EventManager测试）
 
 ## 添加新测试
 

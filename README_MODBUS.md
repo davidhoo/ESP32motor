@@ -105,7 +105,24 @@ pio device monitor
 
 - **modbus_motor_test.cpp**: 基本功能测试
 - **modbus_config_example.cpp**: 参数配置示例
-- **modbus_test_runner.cpp**: 交互式测试菜单
+
+### 3. 通用测试运行器
+```bash
+pio run -e test -t upload
+pio device monitor
+```
+
+在通用测试运行器中，MODBUS 测试已与其他测试并列集成。可以通过以下方式运行：
+1. 输入 '0' 运行所有测试（包括MODBUS测试）
+2. 输入 'e' 运行MODBUS初始化测试
+3. 输入 'f' 运行MODBUS读取运行状态测试
+4. 输入 'g' 运行MODBUS读取频率测试
+5. 输入 'i' 运行MODBUS读取占空比测试
+6. 输入 'j' 运行MODBUS读取配置测试
+7. 输入 'k' 运行MODBUS设置频率测试
+8. 输入 'l' 运行MODBUS设置占空比测试
+9. 输入 'm' 运行MODBUS启动电机测试
+10. 输入 'n' 运行MODBUS停止电机测试
 
 ## 文件结构
 
@@ -119,7 +136,7 @@ src/
 examples/
 ├── modbus_motor_test.cpp        # 基本功能测试
 ├── modbus_config_example.cpp    # 参数配置示例
-└── modbus_test_runner.cpp       # 交互式测试
+└── test_runner.cpp              # 通用测试运行器（包含MODBUS测试）
 docs/
 └── modbus_rtu_protocol_analysis.md  # 协议详细文档
 ```
@@ -134,19 +151,19 @@ docs/
 6. **参数边界检查**
 7. **频率和占空比精确控制**
 8. **软启动/停止时间配置**
-
-## 编译环境
-
-在 `platformio.ini` 中已添加专门的测试环境：
+在 `platformio.ini` 中的通用测试环境已包含MODBUS测试功能：
 
 ```ini
-[env:modbus-test]
+[env:test]
 platform = espressif32
 board = esp32-s3-devkitc-1
 framework = arduino
-build_flags = -DARDUINO_USB_CDC_ON_BOOT=1 -DBOARD_HAS_PSRAM
+build_flags = -DARDUINO_USB_CDC_ON_BOOT=1 -DBOARD_HAS_PSRAM -DENABLE_TESTING=1
 ```
 
+## 注意事项
+
+## 注意事项
 ## 注意事项
 
 1. **频率范围**: 根据调速器规格设置合理的频率范围
