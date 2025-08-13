@@ -25,6 +25,9 @@ void ModbusTest::runAllTests() {
     testReadConfig();
     delay(1000);
     
+    testGetAllConfig();
+    delay(1000);
+    
     // 设置新参数
     testSetFrequency();
     delay(1000);
@@ -121,6 +124,44 @@ void ModbusTest::testReadConfig() {
         Serial.print("   - 缓停止时间: ");
         Serial.print(config.softStopTime * 0.1);
         Serial.println(" 秒");
+    }
+}
+
+void ModbusTest::testGetAllConfig() {
+    Serial.println("\n========================================");
+    Serial.println("=== 一次性读取所有配置 ===");
+    Serial.println("========================================");
+    
+    MotorModbusController::AllConfig config;
+    printResult(modbusController.getAllConfig(config), "一次性读取所有配置");
+    if (modbusController.getAllConfig(config)) {
+        Serial.println("   所有配置详情:");
+        Serial.print("   - 外接开关功能: ");
+        Serial.println(config.externalSwitch ? "开启" : "关闭");
+        Serial.print("   - 0-10V控制功能: ");
+        Serial.println(config.analogControl ? "开启" : "关闭");
+        Serial.print("   - 开机上电默认状态: ");
+        Serial.println(config.powerOnState ? "运行" : "停止");
+        Serial.print("   - 最小输出: ");
+        Serial.print(config.minOutput);
+        Serial.println(" %");
+        Serial.print("   - 最大输出: ");
+        Serial.print(config.maxOutput);
+        Serial.println(" %");
+        Serial.print("   - 缓启动时间: ");
+        Serial.print(config.softStartTime * 0.1);
+        Serial.println(" 秒");
+        Serial.print("   - 缓停止时间: ");
+        Serial.print(config.softStopTime * 0.1);
+        Serial.println(" 秒");
+        Serial.print("   - 运行状态: ");
+        Serial.println(config.isRunning ? "运行中" : "已停止");
+        Serial.print("   - 频率: ");
+        Serial.print(config.frequency);
+        Serial.println(" Hz");
+        Serial.print("   - 占空比: ");
+        Serial.print(config.dutyCycle);
+        Serial.println(" %");
     }
 }
 

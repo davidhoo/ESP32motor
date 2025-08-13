@@ -16,6 +16,19 @@ public:
         uint16_t softStopTime;      // 缓停止时间 (0-65535, 0.1s单位)
     };
     
+    struct AllConfig {
+        bool externalSwitch;        // 外接开关功能 (0=关闭, 1=打开)
+        bool analogControl;         // 0-10V控制功能 (0=关闭, 1=打开)
+        bool powerOnState;          // 开机上电默认状态 (0=停止, 1=运行)
+        uint8_t minOutput;          // 最小输出设置 (0-50%)
+        uint8_t maxOutput;          // 最大输出设置 (60-100%)
+        uint16_t softStartTime;     // 缓启动时间 (0-65535, 0.1s单位)
+        uint16_t softStopTime;      // 缓停止时间 (0-65535, 0.1s单位)
+        bool isRunning;             // 运行状态 (0=停止, 1=运行)
+        uint32_t frequency;         // 频率 (Hz)
+        uint8_t dutyCycle;          // 占空比 (0-100%)
+    };
+    
     struct MotorStatus {
         bool isRunning;             // 运行状态 (0=停止, 1=运行)
         uint32_t frequency;         // 当前频率 (Hz)
@@ -30,6 +43,7 @@ public:
     
     // 配置获取
     bool getConfig(MotorConfig& config);
+    bool getAllConfig(AllConfig& config);
     bool getModuleAddress(uint8_t& address);
     bool getExternalSwitch(bool& enabled);
     bool getAnalogControl(bool& enabled);
