@@ -53,7 +53,8 @@ enum TestMode {
     MODBUS_SET_DUTY_TEST_MODE = 21,
     MODBUS_START_MOTOR_TEST_MODE = 22,
     MODBUS_STOP_MOTOR_TEST_MODE = 23,
-    MODBUS_GET_ALL_CONFIG_TEST_MODE = 24
+    MODBUS_GET_ALL_CONFIG_TEST_MODE = 24,
+    MODBUS_CONTINUOUS_GET_ALL_CONFIG_TEST_MODE = 25
 };
 
 // 当前测试模式
@@ -85,6 +86,7 @@ void runModbusSetDutyTests();
 void runModbusStartMotorTests();
 void runModbusStopMotorTests();
 void runModbusGetAllConfigTests();
+void runModbusContinuousGetAllConfigTests();
 
 void showHelp() {
     Serial.println("\n========================================");
@@ -114,6 +116,7 @@ void showHelp() {
     Serial.println("m. MODBUS启动电机测试");
     Serial.println("n. MODBUS停止电机测试");
     Serial.println("o. MODBUS一次性读取所有配置测试");
+    Serial.println("p. MODBUS连续读取所有配置测试（每秒一次）");
     Serial.println("h. 显示此帮助");
     Serial.println("========================================");
 }
@@ -240,6 +243,10 @@ void loop() {
             case 'o':
             case 'O':
                 runModbusGetAllConfigTests();
+                break;
+            case 'p':
+            case 'P':
+                runModbusContinuousGetAllConfigTests();
                 break;
             case 'h':
             case 'H':
@@ -372,6 +379,55 @@ void loop() {
             bleServer.update();
             delay(100);
         }
+            break;
+            
+        case MODBUS_CONTINUOUS_GET_ALL_CONFIG_TEST_MODE:
+            // MODBUS连续读取所有配置测试需要持续更新
+            {
+                static unsigned long lastUpdate = 0;
+                
+                // 每1秒读取一次配置
+                if (millis() - lastUpdate > 1000) {
+                    lastUpdate = millis();
+                    
+                    // 读取所有配置
+                    MotorModbusController::AllConfig config;
+                    if (modbusController.getAllConfig(config)) {
+                        Serial.println("\n--- MODBUS连续读取所有配置 ---");
+                        Serial.print("外接开关功能: ");
+                        Serial.println(config.externalSwitch ? "开启" : "关闭");
+                        Serial.print("0-10V控制功能: ");
+                        Serial.println(config.analogControl ? "开启" : "关闭");
+                        Serial.print("开机上电默认状态: ");
+                        Serial.println(config.powerOnState ? "运行" : "停止");
+                        Serial.print("最小输出: ");
+                        Serial.print(config.minOutput);
+                        Serial.println(" %");
+                        Serial.print("最大输出: ");
+                        Serial.print(config.maxOutput);
+                        Serial.println(" %");
+                        Serial.print("缓启动时间: ");
+                        Serial.print(config.softStartTime * 0.1);
+                        Serial.println(" 秒");
+                        Serial.print("缓停止时间: ");
+                        Serial.print(config.softStopTime * 0.1);
+                        Serial.println(" 秒");
+                        Serial.print("运行状态: ");
+                        Serial.println(config.isRunning ? "运行中" : "已停止");
+                        Serial.print("频率: ");
+                        Serial.print(config.frequency);
+                        Serial.println(" Hz");
+                        Serial.print("占空比: ");
+                        Serial.print(config.dutyCycle);
+                        Serial.println(" %");
+                        Serial.println("--------------------------------");
+                    } else {
+                        Serial.println("❌ 读取配置失败: " + modbusController.getLastError());
+                    }
+                }
+                
+                delay(100);
+            }
             break;
             
         default:
@@ -714,4 +770,23 @@ void runModbusGetAllConfigTests() {
     modbusTest.testGetAllConfig();
     Serial.println("✅ MODBUS一次性读取所有配置测试完成");
     currentTestMode = MODBUS_GET_ALL_CONFIG_TEST_MODE;
+}
+
+/**
+ * 运行MODBUS连续读取所有配置测试
+ */
+void runModbusContinuousGetAllConfigTests() {
+    printTestHeader("MODBUS连续读取所有配置测试");
+    
+    // 初始化MODBUS通信
+    if (!modbusController.begin(0x01)) {
+        Serial.println("❌ MODBUS初始化失败");
+        currentTestMode = ALL_TESTS_MODE;
+        return;
+    }
+    
+    Serial.println("✅ MODBUS初始化成功");
+    Serial.println("将在loop()中每秒读取一次所有配置");
+    Serial.println("输入其他命令可停止测试");
+    currentTestMode = MODBUS_CONTINUOUS_GET_ALL_CONFIG_TEST_MODE;
 }
