@@ -25,24 +25,31 @@ graph TB
         C[BLE服务器 BLEServer]
         D[LED控制器 LEDController]
         E[配置管理器 ConfigManager]
+        F[Modbus控制器 MotorModbusController]
     end
     
     subgraph "硬件抽象层"
-        F[GPIO驱动 GPIODriver]
-        G[定时器驱动 TimerDriver]
-        H[NVS存储 NVSStorage]
-        I[WS2812驱动 WS2812Driver]
+        G[GPIO驱动 GPIODriver]
+        H[定时器驱动 TimerDriver]
+        I[NVS存储 NVSStorage]
+        J[WS2812驱动 WS2812Driver]
+        K[Modbus RTU驱动 ModbusRTUDriver]
+        L[串口驱动 SerialDriver]
     end
     
     A --> B
     A --> C
     A --> D
     A --> E
+    A --> F
     
-    B --> F
     B --> G
-    D --> I
-    E --> H
+    B --> H
+    C --> F
+    D --> J
+    E --> I
+    F --> K
+    K --> L
 ```
 
 ### 2.2 核心模块划分
@@ -51,9 +58,10 @@ graph TB
 |---------|------|----------|
 | MainController | 系统主控制器，协调各模块工作 | 依赖所有业务模块 |
 | MotorController | 电机控制逻辑，定时循环控制 | GPIODriver, TimerDriver |
-| BLEServer | BLE通信服务，处理手机连接和数据交换 | 无 |
+| BLEServer | BLE通信服务，处理手机连接和数据交换 | MotorModbusController |
 | LEDController | LED状态指示控制 | WS2812Driver |
 | ConfigManager | 配置参数管理和持久化 | NVSStorage |
+| MotorModbusController | 调速器Modbus通信控制 | ModbusRTUDriver |
 
 ## 3. 模块接口设计
 
@@ -109,6 +117,7 @@ public:
     
     // 状态推送
     void updateStatus(const String& json_status);
+    void updateSpeedControllerStatus(const String& json_status);
     
     // 连接状态
     bool isConnected() const;
@@ -119,6 +128,7 @@ private:
     BLECharacteristic* stop_interval_char;
     BLECharacteristic* system_control_char;
     BLECharacteristic* status_char;
+    BLECharacteristic* speed_controller_status_char;
 };
 ```
 
@@ -129,7 +139,8 @@ private:
 | 运行时长 | `2f7a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c6` | 读/写/通知 | 字符串格式的秒数 | "1" - "999" |
 | 停止间隔 | `3f8a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c7` | 读/写/通知 | 字符串格式的秒数 | "0" - "999" |
 | 系统控制 | `4f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c8` | 读/写/通知 | 字符串格式的控制命令 | "0"=停止, "1"=启动 |
-| 状态查询 | `5f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c9` | 读/通知 | JSON格式状态信息 | 见下方示例 |
+| 状态查询 | `5f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c9` | 读/通知 | JSON格式状态信息 | 见状态查询示例 |
+| 调速器状态 | `6f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5ca` | 读/通知 | JSON格式调速器状态 | 见调速器状态示例 |
 
 #### 状态查询JSON格式
 ```json
@@ -149,7 +160,89 @@ private:
 }
 ```
 
-### 3.3 LEDController 接口
+#### 调速器状态JSON格式
+```json
+{
+  "moduleAddress": 1,
+  "isRunning": true,
+  "frequency": 1000,
+  "dutyCycle": 75,
+  "externalSwitch": false,
+  "analogControl": false,
+  "powerOnState": false,
+  "minOutput": 10,
+  "maxOutput": 90,
+  "softStartTime": 50,
+  "softStopTime": 30,
+  "communication": {
+    "lastUpdateTime": 1642678800000,
+    "connectionStatus": "connected",
+    "errorCount": 0,
+    "responseTime": 15
+  }
+}
+```
+### 3.3 MotorModbusController 接口
+
+```cpp
+struct SpeedControllerStatus {
+    uint8_t moduleAddress;        // 模块地址 (1-255)
+    bool isRunning;               // 运行状态
+    uint32_t frequency;           // 当前频率 (Hz)
+    uint8_t dutyCycle;            // 当前占空比 (0-100%)
+    
+    // 配置参数
+    bool externalSwitch;          // 外接开关功能
+    bool analogControl;           // 0-10V控制功能
+    bool powerOnState;            // 开机默认状态
+    uint8_t minOutput;            // 最小输出百分比
+    uint8_t maxOutput;            // 最大输出百分比
+    uint16_t softStartTime;       // 缓启动时间 (0.1s单位)
+    uint16_t softStopTime;        // 缓停止时间 (0.1s单位)
+    
+    struct {
+        uint64_t lastUpdateTime;  // 最后更新时间戳
+        String connectionStatus;  // 连接状态
+        uint32_t errorCount;      // 通信错误计数
+        uint16_t responseTime;    // 响应时间 (ms)
+    } communication;
+};
+
+class MotorModbusController {
+public:
+    // 初始化Modbus控制器
+    bool init(uint8_t rx_pin, uint8_t tx_pin, uint8_t module_address = 1);
+    
+    // 控制命令
+    bool startOutput();
+    bool stopOutput();
+    bool setFrequency(uint32_t frequency);
+    bool setDutyCycle(uint8_t duty_cycle);
+    
+    // 配置管理
+    bool setExternalSwitch(bool enabled);
+    bool setAnalogControl(bool enabled);
+    bool setPowerOnState(bool enabled);
+    bool setOutputRange(uint8_t min_output, uint8_t max_output);
+    bool setSoftTiming(uint16_t start_time, uint16_t stop_time);
+    
+    // 状态查询
+    bool getStatus(SpeedControllerStatus& status);
+    bool isConnected() const;
+    
+    // JSON格式状态
+    String getStatusJSON();
+    
+private:
+    ModbusRTUDriver* modbus_driver;
+    uint8_t module_address;
+    SpeedControllerStatus last_status;
+    uint64_t last_update_time;
+    uint32_t error_count;
+};
+```
+
+### 3.4 LEDController 接口
 
 ```cpp
 class LEDController {
@@ -178,7 +271,7 @@ private:
 };
 ```
 
-### 3.4 ConfigManager 接口
+### 3.5 ConfigManager 接口
 
 ```cpp
 struct MotorConfig {
@@ -254,6 +347,36 @@ sequenceDiagram
     Main->>Motor: start()/stop()
 ```
 
+### 4.3 调速器状态查询流程
+
+```mermaid
+sequenceDiagram
+    participant Phone as 手机App
+    participant BLE as BLEServer
+    participant Main as MainController
+    participant Modbus as MotorModbusController
+    participant Driver as ModbusRTUDriver
+    
+    Phone->>BLE: 订阅调速器状态
+    BLE-->>Main: onSpeedControllerStatusSubscribed()
+    
+    loop 定时查询
+        Main->>Modbus: getStatus()
+        Modbus->>Driver: readHoldingRegisters()
+        Driver-->>Modbus: 寄存器数据
+        Modbus-->>Main: SpeedControllerStatus
+        Main->>BLE: updateSpeedControllerStatus()
+        BLE-->>Phone: 推送状态JSON
+    end
+    
+    Phone->>BLE: 读取调速器状态
+    BLE->>Main: getSpeedControllerStatus()
+    Main->>Modbus: getStatusJSON()
+    Modbus-->>Main: JSON状态
+    Main-->>BLE: JSON状态
+    BLE-->>Phone: 返回状态JSON
+```
+
 ## 5. 关键技术决策
 
 ### 5.1 定时器策略
@@ -261,17 +384,23 @@ sequenceDiagram
 - 主定时器负责电机状态切换和倒计时
 - LED闪烁使用独立的软件计数器
 
-### 5.2 状态管理
+### 5.2 Modbus通信策略
+- 使用ESP32硬件串口UART1进行Modbus RTU通信
+- 波特率9600，8N1数据格式，符合调速器规格
+- 实现读保持寄存器(0x03)、写单个寄存器(0x06)、写多个寄存器(0x10)功能码
+- 定时轮询调速器状态，避免频繁查询影响性能
+
+### 5.3 状态管理
 - 电机控制器维护独立的状态机
 - LED状态与系统状态解耦，便于扩展
 - BLE连接状态独立管理
 
-### 5.3 数据存储
+### 5.4 数据存储
 - 使用NVS存储用户配置参数
 - 配置变更立即持久化
 - 系统重启后自动恢复上次配置
 
-### 5.4 错误处理
+### 5.5 错误处理
 - 各模块初始化失败时返回错误码
 - BLE断连时系统继续正常工作
 - 参数越界时使用默认值并记录日志
@@ -282,19 +411,25 @@ sequenceDiagram
 src/
 ├── main.cpp                 // 主程序入口
 ├── controllers/
-│   ├── MainController.h/.cpp    // 主控制器
-│   ├── MotorController.h/.cpp   // 电机控制器
-│   ├── BLEServer.h/.cpp         // BLE服务器
-│   ├── LEDController.h/.cpp     // LED控制器
-│   └── ConfigManager.h/.cpp     // 配置管理器
+│   ├── MainController.h/.cpp        // 主控制器
+│   ├── MotorController.h/.cpp       // 电机控制器
+│   ├── MotorBLEServer.h/.cpp        // BLE服务器
+│   ├── LEDController.h/.cpp         // LED控制器
+│   ├── ConfigManager.h/.cpp         // 配置管理器
+│   └── MotorModbusController.h/.cpp // Modbus控制器
 ├── drivers/
-│   ├── GPIODriver.h/.cpp        // GPIO驱动
-│   ├── TimerDriver.h/.cpp       // 定时器驱动
-│   ├── NVSStorage.h/.cpp        // NVS存储驱动
-│   └── WS2812Driver.h/.cpp      // WS2812驱动
+│   ├── GPIODriver.h/.cpp            // GPIO驱动
+│   ├── TimerDriver.h/.cpp           // 定时器驱动
+│   ├── NVSStorageDriver.h/.cpp      // NVS存储驱动
+│   ├── WS2812Driver.h/.cpp          // WS2812驱动
+│   ├── ModbusRTUDriver.h/.cpp       // Modbus RTU驱动
+│   └── SerialDriver.h/.cpp          // 串口驱动
 └── common/
-    ├── Config.h                 // 全局配置定义
-    └── Logger.h/.cpp            // 日志工具
+    ├── Config.h                     // 全局配置定义
+    ├── Logger.h/.cpp                // 日志工具
+    ├── StateManager.h/.cpp          // 状态管理器
+    ├── EventManager.h/.cpp          // 事件管理器
+    └── PowerManager.h/.cpp          // 电源管理器
 ```
 
 ## 7. 开发和测试建议

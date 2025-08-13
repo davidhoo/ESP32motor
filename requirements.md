@@ -27,12 +27,14 @@
 - **服务UUID**: `beb5483e-36e1-4688-b7f5-ea07361b26a8`
 
 **BLE特征值定义**:
-| 功能 | UUID | 数据类型 | 读写权限 | 说明 |
-|------|------|----------|----------|------|
-| 运行时长 | `2f7a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c6` | 字符串格式的秒数 | R/W | 1-999秒，小端格式 |
-| 停止间隔 | `3f8a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c7` | 字符串格式的秒数 | R/W | 0-999秒，小端格式 |
-| 系统控制 | `4f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c8` | 字符串格式的秒数 | R/W | 0=停止, 1=启动 |
-| 状态查询 | `5f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c9` | JSON | R | 系统状态信息 |
+
+| 特征名称 | UUID | 权限 | 数据格式 | 范围/示例 |
+|---------|------|------|----------|-----------|
+| 运行时长 | `2f7a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c6` | 读/写/通知 | 字符串格式的秒数 | "1" - "999" |
+| 停止间隔 | `3f8a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c7` | 读/写/通知 | 字符串格式的秒数 | "0" - "999" |
+| 系统控制 | `4f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c8` | 读/写/通知 | 字符串格式的控制命令 | "0"=停止, "1"=启动 |
+| 状态查询 | `5f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c9` | 读/通知 | JSON格式状态信息 | 见状态信息示例 |
+| 调速器状态 | `6f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5ca` | 读/通知 | JSON格式调速器状态 | 见调速器状态示例 |
 
 ### 2.3 状态信息
 ```json
@@ -79,7 +81,59 @@
 }
 ```
 
-### 2.4 LED状态指示
+### 2.4 调速器状态信息
+基于 Modbus RTU 协议的调速器状态信息，包含实时运行参数和配置信息：
+
+```json
+{
+  "moduleAddress": 1,           // 模块地址 (1-255)
+  "isRunning": true,            // 运行状态: true=运行中, false=停止
+  "frequency": 1000,            // 当前频率 (Hz)
+  "dutyCycle": 75,              // 当前占空比 (0-100%)
+  "externalSwitch": false,      // 外接开关功能: true=开启, false=关闭
+  "analogControl": false,       // 0-10V控制功能: true=开启, false=关闭
+  "powerOnState": false,        // 开机默认状态: true=运行, false=停止
+  "minOutput": 10,              // 最小输出百分比 (0-50%)
+  "maxOutput": 90,              // 最大输出百分比 (60-100%)
+  "softStartTime": 50,          // 缓启动时间 (0.1秒单位, 50=5秒)
+  "softStopTime": 30,           // 缓停止时间 (0.1秒单位, 30=3秒)
+  "communication": {
+    "lastUpdateTime": 1642678800000,  // 最后更新时间戳 (毫秒)
+    "connectionStatus": "connected",   // 连接状态: "connected", "disconnected", "error"
+    "errorCount": 0,                   // 通信错误计数
+    "responseTime": 15                 // 最后响应时间 (毫秒)
+  }
+}
+```json
+{
+  "moduleAddress": 1,
+  "isRunning": true,
+  "frequency": 1500,
+  "dutyCycle": 80,
+  "externalSwitch": false,
+  "analogControl": false,
+  "powerOnState": false,
+  "minOutput": 10,
+  "maxOutput": 90,
+  "softStartTime": 50,
+  "softStopTime": 30,
+  "communication": {
+    "lastUpdateTime": 1642678800000,
+    "connectionStatus": "connected",
+    "errorCount": 0,
+    "responseTime": 12
+  },
+  "eventType": "speed_controller_state_change",
+  "eventTime": 1642678800000,
+  "stateChange": {
+    "field": "frequency",
+    "from": 1000,
+    "to": 1500,
+    "reason": "User command via Modbus"
+  }
+}
+```
+### 2.5 LED状态指示
 | 状态 | 颜色 | 模式 | 说明 |
 |------|------|------|------|
 | 系统启动 | 白色 | 闪烁 | 初始化中 |
@@ -95,6 +149,8 @@
 ```
 GPIO 21  - WS2812 RGB LED (板载)
 GPIO 7   - 电机控制信号输出
+GPIO 8   - Modbus RTU RX (调速器通信)
+GPIO 9   - Modbus RTU TX (调速器通信)
 ```
 
 ### 3.2 系统架构
@@ -104,17 +160,23 @@ graph TB
     A --> C[BLE通信]
     A --> D[LED指示]
     A --> E[定时器]
+    A --> F[Modbus通信]
     
     B --> B1[GPIO7控制]
     B --> B2[状态切换]
     
     C --> C1[参数设置]
     C --> C2[状态推送]
+    C --> C3[调速器状态推送]
     
     D --> D1[状态映射]
     
     E --> E1[运行计时]
     E --> E2[停止计时]
+    
+    F --> F1[调速器控制]
+    F --> F2[状态读取]
+    F --> F3[参数配置]
 ```
 
 ### 3.3 系统工作逻辑
@@ -122,24 +184,29 @@ graph TB
 graph TD
     A[系统开机] --> B[读取NVS参数]
     B --> C[启动BLE服务]
-    C --> D[自动开始循环控制]
-    D --> E{电机循环运行}
+    C --> D[初始化Modbus通信]
+    D --> E[自动开始循环控制]
+    E --> F{电机循环运行}
     
-    F[手机连接] --> G[实时状态推送]
-    F --> H[参数设置]
-    F --> I[手动控制]
+    G[手机连接] --> H[实时状态推送]
+    G --> I[参数设置]
+    G --> J[手动控制]
+    G --> K[调速器状态查询]
     
-    H --> J[立即生效]
-    I --> K[优先执行]
+    I --> L[立即生效]
+    J --> M[优先执行]
+    K --> N[Modbus状态读取]
     
-    E --> E
-    J --> E
-    K --> E
+    F --> F
+    L --> F
+    M --> F
+    N --> H
     
     style A fill:#e1f5fe
-    style D fill:#c8e6c9
-    style F fill:#fff3e0
-    style K fill:#ffcdd2
+    style E fill:#c8e6c9
+    style G fill:#fff3e0
+    style M fill:#ffcdd2
+    style N fill:#e8f5e8
 ```
 
 ### 3.4 数据存储
