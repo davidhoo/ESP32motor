@@ -90,9 +90,9 @@ bool MotorModbusController::getSoftTimes(uint16_t& startTime, uint16_t& stopTime
 bool MotorModbusController::setConfig(const MotorConfig& config) {
     uint16_t values[8] = {
         config.moduleAddress,
-        config.externalSwitch ? 1 : 0,
-        config.analogControl ? 1 : 0,
-        config.powerOnState ? 1 : 0,
+        (uint16_t)(config.externalSwitch ? 1 : 0),
+        (uint16_t)(config.analogControl ? 1 : 0),
+        (uint16_t)(config.powerOnState ? 1 : 0),
         config.minOutput,
         config.maxOutput,
         config.softStartTime,
