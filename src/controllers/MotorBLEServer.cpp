@@ -551,7 +551,6 @@ String MotorBLEServer::generateSpeedControllerStatusJson() {
         if (!pMotorModbusController) {
             LOG_WARN("MotorModbusController未初始化");
             // 返回未初始化状态
-            doc["moduleAddress"] = 1;
             doc["isRunning"] = false;
             doc["frequency"] = 0;
             doc["dutyCycle"] = 0;
@@ -574,44 +573,30 @@ String MotorBLEServer::generateSpeedControllerStatusJson() {
             return jsonStr;
         }
         
-        // 获取配置信息
-        MotorModbusController::MotorConfig config;
-        bool configSuccess = pMotorModbusController->getConfig(config);
-        
-        // 获取运行状态
-        bool isRunning = false;
-        uint32_t frequency = 0;
-        uint8_t dutyCycle = 0;
-        
-        bool statusSuccess = pMotorModbusController->getRunStatus(isRunning) &&
-                           pMotorModbusController->getFrequency(frequency) &&
-                           pMotorModbusController->getDutyCycle(dutyCycle);
+        // 一次性获取所有配置和状态信息
+        MotorModbusController::AllConfig allConfig;
+        bool getAllSuccess = pMotorModbusController->getAllConfig(allConfig);
         
         // 填充JSON数据
-        doc["moduleAddress"] = configSuccess ? config.moduleAddress : 1;
-        doc["isRunning"] = statusSuccess ? isRunning : false;
-        doc["frequency"] = statusSuccess ? frequency : 0;
-        doc["dutyCycle"] = statusSuccess ? dutyCycle : 0;
-        doc["externalSwitch"] = configSuccess ? config.externalSwitch : false;
-        doc["analogControl"] = configSuccess ? config.analogControl : false;
-        doc["powerOnState"] = configSuccess ? config.powerOnState : false;
-        doc["minOutput"] = configSuccess ? config.minOutput : 0;
-        doc["maxOutput"] = configSuccess ? config.maxOutput : 100;
-        doc["softStartTime"] = configSuccess ? config.softStartTime : 0;
-        doc["softStopTime"] = configSuccess ? config.softStopTime : 0;
+        doc["isRunning"] = getAllSuccess ? allConfig.isRunning : false;
+        doc["frequency"] = getAllSuccess ? allConfig.frequency : 0;
+        doc["dutyCycle"] = getAllSuccess ? allConfig.dutyCycle : 0;
+        doc["externalSwitch"] = getAllSuccess ? allConfig.externalSwitch : false;
+        doc["analogControl"] = getAllSuccess ? allConfig.analogControl : false;
+        doc["powerOnState"] = getAllSuccess ? allConfig.powerOnState : false;
+        doc["minOutput"] = getAllSuccess ? allConfig.minOutput : 0;
+        doc["maxOutput"] = getAllSuccess ? allConfig.maxOutput : 100;
+        doc["softStartTime"] = getAllSuccess ? allConfig.softStartTime : 0;
+        doc["softStopTime"] = getAllSuccess ? allConfig.softStopTime : 0;
         
         // 通信状态信息
         JsonObject communication = doc.createNestedObject("communication");
         communication["lastUpdateTime"] = millis();
         
-        if (configSuccess && statusSuccess) {
+        if (getAllSuccess) {
             communication["connectionStatus"] = "connected";
             communication["errorCount"] = 0;
             communication["responseTime"] = 15; // 模拟响应时间
-        } else if (configSuccess || statusSuccess) {
-            communication["connectionStatus"] = "partial";
-            communication["errorCount"] = 1;
-            communication["responseTime"] = 50;
         } else {
             communication["connectionStatus"] = "disconnected";
             communication["errorCount"] = 2;
@@ -627,7 +612,6 @@ String MotorBLEServer::generateSpeedControllerStatusJson() {
         
         // 异常情况下返回错误状态
         doc.clear();
-        doc["moduleAddress"] = 1;
         doc["isRunning"] = false;
         doc["frequency"] = 0;
         doc["dutyCycle"] = 0;
