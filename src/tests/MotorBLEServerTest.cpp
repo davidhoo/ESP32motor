@@ -13,6 +13,7 @@ void MotorBLEServerTest::runAllTests() {
     RUN_TEST(testInfoJsonGeneration);
     RUN_TEST(testCommandHandling);
     RUN_TEST(testConfigHandling);
+    RUN_TEST(testSpeedControllerStatusJsonGeneration);
     
     UNITY_END();
 }
@@ -123,4 +124,53 @@ void MotorBLEServerTest::testConfigHandling() {
     // 恢复原始配置
     configManager.updateConfig(originalConfig);
     configManager.saveConfig();
+}
+
+void MotorBLEServerTest::testSpeedControllerStatusJsonGeneration() {
+    MotorBLEServer& bleServer = MotorBLEServer::getInstance();
+    
+    // 测试调速器状态JSON生成
+    String json = bleServer.generateSpeedControllerStatusJson();
+    TEST_ASSERT_TRUE(json.length() > 0);
+    
+    // 验证JSON格式
+    DynamicJsonDocument doc(1024);
+    DeserializationError error = deserializeJson(doc, json);
+    TEST_ASSERT_FALSE(error);
+    
+    // 验证必要字段
+    TEST_ASSERT_TRUE(doc.containsKey("moduleAddress"));
+    TEST_ASSERT_TRUE(doc.containsKey("isRunning"));
+    TEST_ASSERT_TRUE(doc.containsKey("frequency"));
+    TEST_ASSERT_TRUE(doc.containsKey("dutyCycle"));
+    TEST_ASSERT_TRUE(doc.containsKey("externalSwitch"));
+    TEST_ASSERT_TRUE(doc.containsKey("analogControl"));
+    TEST_ASSERT_TRUE(doc.containsKey("powerOnState"));
+    TEST_ASSERT_TRUE(doc.containsKey("minOutput"));
+    TEST_ASSERT_TRUE(doc.containsKey("maxOutput"));
+    TEST_ASSERT_TRUE(doc.containsKey("softStartTime"));
+    TEST_ASSERT_TRUE(doc.containsKey("softStopTime"));
+    TEST_ASSERT_TRUE(doc.containsKey("communication"));
+    
+    // 验证通信状态字段
+    JsonObject communication = doc["communication"];
+    TEST_ASSERT_TRUE(communication.containsKey("lastUpdateTime"));
+    TEST_ASSERT_TRUE(communication.containsKey("connectionStatus"));
+    TEST_ASSERT_TRUE(communication.containsKey("errorCount"));
+    TEST_ASSERT_TRUE(communication.containsKey("responseTime"));
+    
+    // 验证数据类型
+    TEST_ASSERT_TRUE(doc["moduleAddress"].is<int>());
+    TEST_ASSERT_TRUE(doc["isRunning"].is<bool>());
+    TEST_ASSERT_TRUE(doc["frequency"].is<int>());
+    TEST_ASSERT_TRUE(doc["dutyCycle"].is<int>());
+    TEST_ASSERT_TRUE(doc["externalSwitch"].is<bool>());
+    TEST_ASSERT_TRUE(doc["analogControl"].is<bool>());
+    TEST_ASSERT_TRUE(doc["powerOnState"].is<bool>());
+    TEST_ASSERT_TRUE(doc["minOutput"].is<int>());
+    TEST_ASSERT_TRUE(doc["maxOutput"].is<int>());
+    TEST_ASSERT_TRUE(doc["softStartTime"].is<int>());
+    TEST_ASSERT_TRUE(doc["softStopTime"].is<int>());
+    
+    LOG_INFO("调速器状态JSON测试通过: %s", json.c_str());
 }
