@@ -31,6 +31,30 @@ bool MotorModbusController::getConfig(MotorConfig& config) {
     return true;
 }
 
+bool MotorModbusController::getAllConfig(AllConfig& config) {
+    // 需要读取的寄存器数量: 从 0x0001 到 0x000B (共 11 个寄存器)
+    uint16_t values[11];
+    
+    // 从寄存器 0x0001 开始读取 11 个寄存器
+    if (!_modbus.readHoldingRegisters(REG_EXTERNAL_SWITCH, 11, values)) {
+        return false;
+    }
+    
+    // 填充 AllConfig 结构体
+    config.externalSwitch = (values[0] == 1);    // 0x0001
+    config.analogControl = (values[1] == 1);     // 0x0002
+    config.powerOnState = (values[2] == 1);      // 0x0003
+    config.minOutput = (uint8_t)values[3];       // 0x0004
+    config.maxOutput = (uint8_t)values[4];       // 0x0005
+    config.softStartTime = values[5];            // 0x0006
+    config.softStopTime = values[6];             // 0x0007
+    config.isRunning = (values[7] == 1);         // 0x0008
+    config.frequency = ((uint32_t)values[8] << 16) | values[9]; // 0x0009, 0x000A
+    config.dutyCycle = (uint8_t)values[10];      // 0x000B
+    
+    return true;
+}
+
 bool MotorModbusController::getModuleAddress(uint8_t& address) {
     uint16_t value;
     if (_modbus.readHoldingRegisters(REG_MODULE_ADDRESS, 1, &value)) {

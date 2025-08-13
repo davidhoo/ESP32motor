@@ -42,6 +42,11 @@ public:
     void testReadConfig();
     
     /**
+     * 一次性读取所有配置测试
+     */
+    void testGetAllConfig();
+    
+    /**
      * 设置新频率测试
      */
     void testSetFrequency();

@@ -52,7 +52,8 @@ enum TestMode {
     MODBUS_SET_FREQUENCY_TEST_MODE = 20,
     MODBUS_SET_DUTY_TEST_MODE = 21,
     MODBUS_START_MOTOR_TEST_MODE = 22,
-    MODBUS_STOP_MOTOR_TEST_MODE = 23
+    MODBUS_STOP_MOTOR_TEST_MODE = 23,
+    MODBUS_GET_ALL_CONFIG_TEST_MODE = 24
 };
 
 // 当前测试模式
@@ -83,6 +84,7 @@ void runModbusSetFrequencyTests();
 void runModbusSetDutyTests();
 void runModbusStartMotorTests();
 void runModbusStopMotorTests();
+void runModbusGetAllConfigTests();
 
 void showHelp() {
     Serial.println("\n========================================");
@@ -111,6 +113,7 @@ void showHelp() {
     Serial.println("l. MODBUS设置占空比测试");
     Serial.println("m. MODBUS启动电机测试");
     Serial.println("n. MODBUS停止电机测试");
+    Serial.println("o. MODBUS一次性读取所有配置测试");
     Serial.println("h. 显示此帮助");
     Serial.println("========================================");
 }
@@ -233,6 +236,10 @@ void loop() {
             case 'n':
             case 'N':
                 runModbusStopMotorTests();
+                break;
+            case 'o':
+            case 'O':
+                runModbusGetAllConfigTests();
                 break;
             case 'h':
             case 'H':
@@ -697,4 +704,14 @@ void runModbusStopMotorTests() {
     modbusTest.testStopMotor();
     Serial.println("✅ MODBUS停止电机测试完成");
     currentTestMode = MODBUS_STOP_MOTOR_TEST_MODE;
+}
+
+/**
+ * 运行MODBUS一次性读取所有配置测试
+ */
+void runModbusGetAllConfigTests() {
+    printTestHeader("MODBUS一次性读取所有配置测试");
+    modbusTest.testGetAllConfig();
+    Serial.println("✅ MODBUS一次性读取所有配置测试完成");
+    currentTestMode = MODBUS_GET_ALL_CONFIG_TEST_MODE;
 }
