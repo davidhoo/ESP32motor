@@ -1,6 +1,10 @@
 {
     "files.associations": {
+        "*.cjson": "jsonc",
+        "*.wxss": "css",
+        "*.wxs": "javascript",
         "algorithm": "cpp",
-        "cstring": "cpp"
+        "cstring": "cpp",
+        "iomanip": "cpp"
     }
 }

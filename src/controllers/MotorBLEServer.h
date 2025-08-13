@@ -101,6 +101,9 @@ private:
     bool oldDeviceConnected = false;
     char lastError[128] = "";
     
+    // 调速器状态读取保护
+    uint32_t lastSpeedControllerStatusReadTime = 0;  // 上次读取调速器状态的时间
+    
     // === 5.4.3 BLE断连时的系统稳定运行机制 ===
     bool disconnectionHandled = false;
     uint32_t lastConnectionTime = 0;

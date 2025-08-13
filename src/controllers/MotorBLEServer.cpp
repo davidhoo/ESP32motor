@@ -312,8 +312,24 @@ void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharact
         String statusJson = bleServer->generateStatusJson();
         pCharacteristic->setValue(statusJson.c_str());
     } else if (strcmp(charUUID, SPEED_CONTROLLER_STATUS_CHAR_UUID) == 0) {
-        String speedControllerStatusJson = bleServer->generateSpeedControllerStatusJson();
-        pCharacteristic->setValue(speedControllerStatusJson.c_str());
+        // 添加2秒保护机制，防止频繁读取
+        uint32_t currentTime = millis();
+        if (currentTime - bleServer->lastSpeedControllerStatusReadTime < 2000) {
+            // 如果距离上次读取不到2秒，返回错误信息
+            DynamicJsonDocument doc(256);
+            doc["error"] = "Read too frequently. Please wait at least 2 seconds between reads.";
+            doc["errorCode"] = 1;
+            
+            String errorJson;
+            serializeJson(doc, errorJson);
+            pCharacteristic->setValue(errorJson.c_str());
+        } else {
+            // 正常处理读取请求
+            String speedControllerStatusJson = bleServer->generateSpeedControllerStatusJson();
+            pCharacteristic->setValue(speedControllerStatusJson.c_str());
+            // 更新上次读取时间
+            bleServer->lastSpeedControllerStatusReadTime = currentTime;
+        }
     }
 }
 
