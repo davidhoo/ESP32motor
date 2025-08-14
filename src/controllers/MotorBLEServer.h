@@ -74,6 +74,7 @@ public:
     void handleRunDurationWrite(const String& value);
     void handleStopIntervalWrite(const String& value);
     void handleSystemControlWrite(const String& value);
+    void handleSpeedControllerConfigWrite(const String& value);
     String generateStatusJson();
     String generateSpeedControllerStatusJson();
     String generateInfoJson();
@@ -94,6 +95,7 @@ private:
     BLECharacteristic* pSystemControlCharacteristic = nullptr;
     BLECharacteristic* pStatusQueryCharacteristic = nullptr;
     BLECharacteristic* pSpeedControllerStatusCharacteristic = nullptr;
+    BLECharacteristic* pSpeedControllerConfigCharacteristic = nullptr;
     
     // 状态
     // 状态
@@ -122,6 +124,7 @@ private:
     static constexpr const char* SYSTEM_CONTROL_CHAR_UUID = "4f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c8";
     static constexpr const char* STATUS_QUERY_CHAR_UUID = "5f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c9";
     static constexpr const char* SPEED_CONTROLLER_STATUS_CHAR_UUID = "6f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5ca";
+    static constexpr const char* SPEED_CONTROLLER_CONFIG_CHAR_UUID = "7f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5cb";
     
     // 设备名称
     static constexpr const char* DEVICE_NAME = "ESP32-Motor-Control";

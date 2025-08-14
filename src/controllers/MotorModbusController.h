@@ -53,6 +53,7 @@ public:
     
     // 配置设置
     bool setConfig(const MotorConfig& config);
+    bool setAllConfig(const AllConfig& config, bool setRunning = false);
     bool setModuleAddress(uint8_t address);
     bool setExternalSwitch(bool enabled);
     bool setAnalogControl(bool enabled);
