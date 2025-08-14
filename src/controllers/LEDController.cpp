@@ -1,5 +1,6 @@
 #include "LEDController.h"
 #include "../common/Logger.h"
+#include "../common/Config.h"
 
 // 定义颜色常量
 const uint8_t LEDController::COLOR_BLUE[3] = {0, 0, 255};
@@ -11,7 +12,7 @@ const uint8_t LEDController::COLOR_PURPLE[3] = {255, 0, 255};
 const uint8_t LEDController::COLOR_OFF[3] = {0, 0, 0};
 
 LEDController::LEDController()
-    : ws2812(std::unique_ptr<WS2812Driver>(new WS2812Driver(21, 1)))  // GPIO 21, 1个LED
+    : ws2812(std::unique_ptr<WS2812Driver>(new WS2812Driver(LED_PIN, LED_COUNT)))  // 使用Config.h中的定义
     , timer(TimerDriver::getInstance())
     , stateManager(StateManager::getInstance())
     , currentState(LEDState::SYSTEM_INIT)
@@ -36,7 +37,7 @@ bool LEDController::init() {
     
     // 初始化WS2812驱动
     ws2812->begin();
-    ws2812->setBrightness(50);  // 设置亮度为50%
+    ws2812->setBrightness(LED_BRIGHTNESS);  // 使用Config.h中的定义
     
     // 清除LED显示
     clearLED();
