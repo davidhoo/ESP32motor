@@ -100,6 +100,15 @@ bool MotorBLEServer::init() {
         );
         pSpeedControllerStatusCharacteristic->setCallbacks(new CharacteristicCallbacks(this, SPEED_CONTROLLER_STATUS_CHAR_UUID));
         
+        // 创建调速器配置特征值
+        pSpeedControllerConfigCharacteristic = pService->createCharacteristic(
+            SPEED_CONTROLLER_CONFIG_CHAR_UUID,
+            BLECharacteristic::PROPERTY_READ |
+            BLECharacteristic::PROPERTY_WRITE |
+            BLECharacteristic::PROPERTY_NOTIFY
+        );
+        pSpeedControllerConfigCharacteristic->setCallbacks(new CharacteristicCallbacks(this, SPEED_CONTROLLER_CONFIG_CHAR_UUID));
+        
         // 设置初始值 - 从ConfigManager获取实际配置值
         ConfigManager& configManager = ConfigManager::getInstance();
         MotorConfig config = configManager.getConfig();
@@ -109,6 +118,8 @@ bool MotorBLEServer::init() {
         pSystemControlCharacteristic->setValue("1");  // 系统控制初始为启动状态
         pStatusQueryCharacteristic->setValue(generateStatusJson().c_str());
         pSpeedControllerStatusCharacteristic->setValue(generateSpeedControllerStatusJson().c_str());
+        // 调速器配置特征初始为空JSON对象
+        pSpeedControllerConfigCharacteristic->setValue("{}");
         
         LOG_INFO("BLE特征值已初始化 - 运行时长: %lu秒, 停止间隔: %lu秒",
                  config.runDuration, config.stopDuration);
@@ -282,6 +293,8 @@ void MotorBLEServer::CharacteristicCallbacks::onWrite(BLECharacteristic* pCharac
         bleServer->handleStopIntervalWrite(strValue);
     } else if (strcmp(charUUID, SYSTEM_CONTROL_CHAR_UUID) == 0) {
         bleServer->handleSystemControlWrite(strValue);
+    } else if (strcmp(charUUID, SPEED_CONTROLLER_CONFIG_CHAR_UUID) == 0) {
+        bleServer->handleSpeedControllerConfigWrite(strValue);
     }
 }
 
@@ -330,6 +343,9 @@ void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharact
             // 更新上次读取时间
             bleServer->lastSpeedControllerStatusReadTime = currentTime;
         }
+    } else if (strcmp(charUUID, SPEED_CONTROLLER_CONFIG_CHAR_UUID) == 0) {
+        // 返回当前的调速器配置（空JSON对象）
+        pCharacteristic->setValue("{}");
     }
 }
 
@@ -833,4 +849,66 @@ void MotorBLEServer::resetConnectionState() {
     memset(lastError, 0, sizeof(lastError));
     
     LOG_INFO("BLE连接状态已重置");
+}
+
+// 处理调速器配置写入
+void MotorBLEServer::handleSpeedControllerConfigWrite(const String& value) {
+    try {
+        LOG_INFO("收到调速器配置写入: %s", value.c_str());
+        
+        // 解析JSON配置
+        DynamicJsonDocument doc(1024);
+        DeserializationError error = deserializeJson(doc, value);
+        
+        if (error) {
+            LOG_ERROR("解析调速器配置JSON失败: %s", error.c_str());
+            return;
+        }
+        
+        // 检查MotorModbusController是否已初始化
+        if (!pMotorModbusController) {
+            LOG_ERROR("MotorModbusController未初始化");
+            return;
+        }
+        
+        // 创建AllConfig对象并填充值
+        MotorModbusController::AllConfig config;
+        
+        // 从JSON中提取配置值，如果不存在则使用默认值
+        config.externalSwitch = doc["externalSwitch"] | false;
+        config.analogControl = doc["analogControl"] | false;
+        config.powerOnState = doc["powerOnState"] | false;
+        config.minOutput = doc["minOutput"] | 0;
+        config.maxOutput = doc["maxOutput"] | 100;
+        config.softStartTime = doc["softStartTime"] | 0;
+        config.softStopTime = doc["softStopTime"] | 0;
+        config.isRunning = doc["isRunning"] | false;
+        config.frequency = doc["frequency"] | 0;
+        config.dutyCycle = doc["dutyCycle"] | 0;
+        
+        // 调用MotorModbusController的setAllConfig方法
+        // 不设置运行状态
+        bool setRunning = false;
+        bool success = pMotorModbusController->setAllConfig(config, setRunning);
+        
+        if (success) {
+            LOG_INFO("调速器配置已更新");
+            
+            // 更新特征值
+            if (pSpeedControllerConfigCharacteristic) {
+                pSpeedControllerConfigCharacteristic->setValue(value.c_str());
+                pSpeedControllerConfigCharacteristic->notify();
+            }
+            
+            // 立即读取并推送更新后的调速器状态
+            if (isConnected()) {
+                String speedControllerStatusJson = generateSpeedControllerStatusJson();
+                sendSpeedControllerStatusNotification(speedControllerStatusJson);
+            }
+        } else {
+            LOG_ERROR("调速器配置更新失败: %s", pMotorModbusController->getLastError().c_str());
+        }
+    } catch (const std::exception& e) {
+        LOG_ERROR("处理调速器配置写入异常: %s", e.what());
+    }
 }

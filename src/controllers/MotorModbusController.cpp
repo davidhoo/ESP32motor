@@ -126,6 +126,40 @@ bool MotorModbusController::setConfig(const MotorConfig& config) {
     return _modbus.writeMultipleRegisters(REG_MODULE_ADDRESS, 8, values);
 }
 
+bool MotorModbusController::setAllConfig(const AllConfig& config, bool setRunning) {
+    // 准备寄存器值数组
+    // 从 REG_EXTERNAL_SWITCH (0x0001) 开始，共 11 个寄存器
+    uint16_t values[11];
+    
+    // 填充配置值
+    values[0] = config.externalSwitch ? 1 : 0;    // REG_EXTERNAL_SWITCH (0x0001)
+    values[1] = config.analogControl ? 1 : 0;     // REG_0_10V_CONTROL (0x0002)
+    values[2] = config.powerOnState ? 1 : 0;      // REG_POWER_ON_STATE (0x0003)
+    values[3] = config.minOutput;                // REG_MIN_OUTPUT (0x0004)
+    values[4] = config.maxOutput;                // REG_MAX_OUTPUT (0x0005)
+    values[5] = config.softStartTime;            // REG_SOFT_START_TIME (0x0006)
+    values[6] = config.softStopTime;             // REG_SOFT_STOP_TIME (0x0007)
+    values[7] = config.isRunning ? 1 : 0;        // REG_RUN_STATUS (0x0008) - 只有在 setRunning 为 true 时才设置
+    values[8] = (config.frequency >> 16) & 0xFFFF; // REG_FREQ_HIGH (0x0009)
+    values[9] = config.frequency & 0xFFFF;       // REG_FREQ_LOW (0x000A)
+    values[10] = config.dutyCycle;               // REG_DUTY_CYCLE (0x000B)
+    
+    // 如果不设置运行状态，则不写入运行状态寄存器
+    if (!setRunning) {
+        // 只写入前7个寄存器（0x0001-0x0007），不包括运行状态
+        if (!_modbus.writeMultipleRegisters(REG_EXTERNAL_SWITCH, 7, values)) {
+            return false;
+        }
+        
+        // 然后写入频率和占空比寄存器（0x0009-0x000B）
+        uint16_t freqDutyValues[3] = {values[8], values[9], values[10]};
+        return _modbus.writeMultipleRegisters(REG_FREQ_HIGH, 3, freqDutyValues);
+    } else {
+        // 设置所有寄存器，包括运行状态
+        return _modbus.writeMultipleRegisters(REG_EXTERNAL_SWITCH, 11, values);
+    }
+}
+
 bool MotorModbusController::setModuleAddress(uint8_t address) {
     if (address > 255) address = 255;
     return _modbus.writeSingleRegister(REG_MODULE_ADDRESS, address);
