@@ -169,42 +169,71 @@ void MotorController::handleStoppedState() {
     }
     
     // 初始化停止时间倒计时
+    // 初始化停止时间倒计时 - 使用毫秒精度
     if (remainingStopTime == 0) {
-        remainingStopTime = currentConfig.stopDuration; // 直接使用秒
+        remainingStopTime = currentConfig.stopDuration * 1000; // 转换为毫秒
         stateStartTime = millis();
-        LOG_TAG_INFO("MotorController", "开始停止间隔倒计时: %lu 秒", remainingStopTime);
+        LOG_TAG_INFO("MotorController", "开始停止间隔倒计时: %lu ms (%.1f 秒, 开始时间: %lu ms)",
+                     remainingStopTime, remainingStopTime/1000.0f, stateStartTime);
     }
     
-    // 更新停止时间倒计时
-    uint32_t elapsed = (millis() - stateStartTime) / 1000;
-    if (elapsed >= remainingStopTime) {
+    // 更新停止时间倒计时 - 使用毫秒精度
+    uint32_t currentTime = millis();
+    uint32_t elapsedMs = currentTime - stateStartTime;
+    uint32_t targetDurationMs = currentConfig.stopDuration * 1000;
+    
+    // 调试日志：计时精度验证
+    if (elapsedMs % 5000 < 100) { // 每5秒输出一次调试信息
+        LOG_TAG_DEBUG("MotorController", "停止计时调试 - 当前时间: %lu ms, 已过时间: %lu ms (%.2f s), 目标: %lu ms (%.1f s), 剩余: %lu ms",
+                     currentTime, elapsedMs, elapsedMs/1000.0f, targetDurationMs, targetDurationMs/1000.0f,
+                     (targetDurationMs > elapsedMs) ? (targetDurationMs - elapsedMs) : 0);
+    }
+    
+    if (elapsedMs >= targetDurationMs) {
         // 停止时间结束，开始下一个运行周期
+        long timingError = (long)elapsedMs - (long)targetDurationMs;
+        LOG_TAG_INFO("MotorController", "停止间隔结束 - 配置: %lu ms (%.1f s), 实际: %lu ms (%.1f s), 误差: %ld ms",
+                     targetDurationMs, targetDurationMs/1000.0f, elapsedMs, elapsedMs/1000.0f, timingError);
         remainingStopTime = 0;
-        LOG_TAG_INFO("MotorController", "停止间隔结束，启动下一个运行周期");
         setState(MotorControllerState::STARTING);
     } else {
-        // 更新剩余停止时间
-        remainingStopTime = currentConfig.stopDuration - elapsed;
+        // 更新剩余停止时间（毫秒）
+        remainingStopTime = targetDurationMs - elapsedMs;
     }
 }
 
 // 处理运行状态
 void MotorController::handleRunningState() {
-    // 初始化运行时间倒计时
+    // 初始化运行时间倒计时 - 使用毫秒精度
     if (remainingRunTime == 0) {
-        remainingRunTime = currentConfig.runDuration; // 直接使用秒
+        remainingRunTime = currentConfig.runDuration * 1000; // 转换为毫秒
         stateStartTime = millis();
-        LOG_TAG_INFO("MotorController", "开始运行时间倒计时: %lu 秒", remainingRunTime);
+        LOG_TAG_INFO("MotorController", "开始运行时间倒计时: %lu ms (%.1f 秒, 开始时间: %lu ms)",
+                     remainingRunTime, remainingRunTime/1000.0f, stateStartTime);
     }
     
-    // 更新运行时间倒计时
-    uint32_t elapsed = (millis() - stateStartTime) / 1000;
-    if (elapsed >= remainingRunTime) {
+    // 更新运行时间倒计时 - 使用毫秒精度
+    uint32_t currentTime = millis();
+    uint32_t elapsedMs = currentTime - stateStartTime;
+    uint32_t targetDurationMs = currentConfig.runDuration * 1000;
+    
+    // 调试日志：计时精度验证
+    if (elapsedMs % 5000 < 100) { // 每5秒输出一次调试信息
+        LOG_TAG_DEBUG("MotorController", "运行计时调试 - 当前时间: %lu ms, 已过时间: %lu ms (%.2f s), 目标: %lu ms (%.1f s), 剩余: %lu ms",
+                     currentTime, elapsedMs, elapsedMs/1000.0f, targetDurationMs, targetDurationMs/1000.0f,
+                     (targetDurationMs > elapsedMs) ? (targetDurationMs - elapsedMs) : 0);
+    }
+    
+    if (elapsedMs >= targetDurationMs) {
         // 运行时间结束，完成一个循环
+        long timingError = (long)elapsedMs - (long)targetDurationMs;
+        LOG_TAG_INFO("MotorController", "运行周期完成 - 配置: %lu ms (%.1f s), 实际: %lu ms (%.1f s), 误差: %ld ms",
+                     targetDurationMs, targetDurationMs/1000.0f, elapsedMs, elapsedMs/1000.0f, timingError);
+        
         remainingRunTime = 0;
         cycleCount++;
         
-        LOG_TAG_INFO("MotorController", "运行周期完成，当前循环次数: %lu/%s",
+        LOG_TAG_INFO("MotorController", "当前循环次数: %lu/%s",
                      cycleCount,
                      (currentConfig.cycleCount == 0) ? "∞" : String(currentConfig.cycleCount).c_str());
         
@@ -222,8 +251,8 @@ void MotorController::handleRunningState() {
             setState(MotorControllerState::STOPPING);
         }
     } else {
-        // 更新剩余运行时间
-        remainingRunTime = currentConfig.runDuration - elapsed;
+        // 更新剩余运行时间（毫秒）
+        remainingRunTime = targetDurationMs - elapsedMs;
     }
 }
 
@@ -292,14 +321,16 @@ void MotorController::updateConfig(const MotorConfig& config) {
     MotorConfig oldConfig = currentConfig;
     currentConfig = config;
     
-    // 如果电机正在运行，根据新配置调整计时器
+    // 如果电机正在运行，根据新配置调整计时器（注意：内部使用毫秒）
     if (currentState == MotorControllerState::RUNNING) {
-        if (remainingRunTime > currentConfig.runDuration) {
-            remainingRunTime = currentConfig.runDuration;
+        uint32_t newRunTimeMs = currentConfig.runDuration * 1000;
+        if (remainingRunTime > newRunTimeMs) {
+            remainingRunTime = newRunTimeMs;
         }
     } else if (currentState == MotorControllerState::STOPPED) {
-        if (remainingStopTime > currentConfig.stopDuration) {
-            remainingStopTime = currentConfig.stopDuration;
+        uint32_t newStopTimeMs = currentConfig.stopDuration * 1000;
+        if (remainingStopTime > newStopTimeMs) {
+            remainingStopTime = newStopTimeMs;
         }
     }
     
@@ -334,14 +365,14 @@ MotorControllerState MotorController::getCurrentState() const {
     return currentState;
 }
 
-// 获取剩余运行时间
+// 获取剩余运行时间（返回秒，用于BLE接口）
 uint32_t MotorController::getRemainingRunTime() const {
-    return remainingRunTime;
+    return remainingRunTime / 1000;  // 转换毫秒为秒
 }
 
-// 获取剩余停止时间
+// 获取剩余停止时间（返回秒，用于BLE接口）
 uint32_t MotorController::getRemainingStopTime() const {
-    return remainingStopTime;
+    return remainingStopTime / 1000;  // 转换毫秒为秒
 }
 
 // 获取当前循环次数
