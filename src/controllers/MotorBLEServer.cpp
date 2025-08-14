@@ -302,8 +302,9 @@ void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharact
         String statusJson = bleServer->generateStatusJson();
         pCharacteristic->setValue(statusJson.c_str());
     } else if (strcmp(charUUID, SPEED_CONTROLLER_CONFIG_CHAR_UUID) == 0) {
-        // 返回当前的调速器配置（空JSON对象）
-        pCharacteristic->setValue("{}");
+        // 返回当前的调速器配置
+        String configJson = bleServer->generateSpeedControllerConfigJson();
+        pCharacteristic->setValue(configJson.c_str());
     }
 }
 
