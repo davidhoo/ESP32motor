@@ -183,8 +183,7 @@ void MotorBLEServer::update() {
     
     // === 简化的低功耗状态推送机制 ===
     static uint32_t lastStatusUpdate = 0;
-    static uint32_t lastSpeedControllerStatusUpdate = 0;
-    static uint32_t statusUpdateInterval = 5000; // 固定5秒推送间隔（低功耗）
+    static uint32_t statusUpdateInterval = 1000; // 固定1秒推送间隔
     
     
     uint32_t currentTime = millis();
@@ -194,14 +193,6 @@ void MotorBLEServer::update() {
         String statusJson = generateStatusJson();
         sendStatusNotification(statusJson);
         lastStatusUpdate = currentTime;
-        
-        // 简化的推送频率调整：仅根据电机状态
-        MotorController& motorController = MotorController::getInstance();
-        if (motorController.isRunning()) {
-            statusUpdateInterval = 3000; // 运行时每3秒推送
-        } else {
-            statusUpdateInterval = 8000; // 停止时每8秒推送
-        }
     }
     
 }
