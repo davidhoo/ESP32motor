@@ -91,15 +91,7 @@ bool MotorBLEServer::init() {
             BLECharacteristic::PROPERTY_NOTIFY
         );
         pStatusQueryCharacteristic->setCallbacks(new CharacteristicCallbacks(this, STATUS_QUERY_CHAR_UUID));
-        
-        // 创建调速器状态特征值
-        pSpeedControllerStatusCharacteristic = pService->createCharacteristic(
-            SPEED_CONTROLLER_STATUS_CHAR_UUID,
-            BLECharacteristic::PROPERTY_READ |
-            BLECharacteristic::PROPERTY_NOTIFY
-        );
-        pSpeedControllerStatusCharacteristic->setCallbacks(new CharacteristicCallbacks(this, SPEED_CONTROLLER_STATUS_CHAR_UUID));
-        
+  
         // 创建调速器配置特征值
         pSpeedControllerConfigCharacteristic = pService->createCharacteristic(
             SPEED_CONTROLLER_CONFIG_CHAR_UUID,
@@ -117,7 +109,7 @@ bool MotorBLEServer::init() {
         pStopIntervalCharacteristic->setValue(String(config.stopDuration).c_str());
         pSystemControlCharacteristic->setValue("1");  // 系统控制初始为启动状态
         pStatusQueryCharacteristic->setValue(generateStatusJson().c_str());
-        pSpeedControllerStatusCharacteristic->setValue(generateSpeedControllerStatusJson().c_str());
+        
         // 调速器配置特征初始为空JSON对象
         pSpeedControllerConfigCharacteristic->setValue("{}");
         
@@ -193,7 +185,7 @@ void MotorBLEServer::update() {
     static uint32_t lastStatusUpdate = 0;
     static uint32_t lastSpeedControllerStatusUpdate = 0;
     static uint32_t statusUpdateInterval = 5000; // 固定5秒推送间隔（低功耗）
-    static uint32_t speedControllerStatusUpdateInterval = 10000; // 调速器状态每10秒推送一次
+    
     
     uint32_t currentTime = millis();
     
@@ -212,14 +204,6 @@ void MotorBLEServer::update() {
         }
     }
     
-    // 调速器状态定时推送
-    if (currentTime - lastSpeedControllerStatusUpdate >= speedControllerStatusUpdateInterval) {
-        String speedControllerStatusJson = generateSpeedControllerStatusJson();
-        sendSpeedControllerStatusNotification(speedControllerStatusJson);
-        lastSpeedControllerStatusUpdate = currentTime;
-        
-        LOG_DEBUG("调速器状态已推送给BLE客户端");
-    }
 }
 
 // 获取连接状态
@@ -235,13 +219,6 @@ void MotorBLEServer::sendStatusNotification(const String& status) {
     }
 }
 
-// 发送调速器状态通知
-void MotorBLEServer::sendSpeedControllerStatusNotification(const String& status) {
-    if (pSpeedControllerStatusCharacteristic && isConnected()) {
-        pSpeedControllerStatusCharacteristic->setValue(status.c_str());
-        pSpeedControllerStatusCharacteristic->notify();
-    }
-}
 
 // 服务器连接回调
 void MotorBLEServer::ServerCallbacks::onConnect(BLEServer* pServer) {
@@ -324,32 +301,12 @@ void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharact
     } else if (strcmp(charUUID, STATUS_QUERY_CHAR_UUID) == 0) {
         String statusJson = bleServer->generateStatusJson();
         pCharacteristic->setValue(statusJson.c_str());
-    } else if (strcmp(charUUID, SPEED_CONTROLLER_STATUS_CHAR_UUID) == 0) {
-        // 添加2秒保护机制，防止频繁读取
-        uint32_t currentTime = millis();
-        if (currentTime - bleServer->lastSpeedControllerStatusReadTime < 2000) {
-            // 如果距离上次读取不到2秒，返回错误信息
-            DynamicJsonDocument doc(256);
-            doc["error"] = "Read too frequently. Please wait at least 2 seconds between reads.";
-            doc["errorCode"] = 1;
-            
-            String errorJson;
-            serializeJson(doc, errorJson);
-            pCharacteristic->setValue(errorJson.c_str());
-        } else {
-            // 正常处理读取请求
-            String speedControllerStatusJson = bleServer->generateSpeedControllerStatusJson();
-            pCharacteristic->setValue(speedControllerStatusJson.c_str());
-            // 更新上次读取时间
-            bleServer->lastSpeedControllerStatusReadTime = currentTime;
-        }
     } else if (strcmp(charUUID, SPEED_CONTROLLER_CONFIG_CHAR_UUID) == 0) {
         // 返回当前的调速器配置（空JSON对象）
         pCharacteristic->setValue("{}");
     }
 }
 
-// 处理运行时长写入
 // 处理运行时长写入
 void MotorBLEServer::handleRunDurationWrite(const String& value) {
     try {
@@ -387,7 +344,6 @@ void MotorBLEServer::handleRunDurationWrite(const String& value) {
     }
 }
 // 处理停止间隔写入
-// 处理停止间隔写入
 void MotorBLEServer::handleStopIntervalWrite(const String& value) {
     try {
         uint32_t stopInterval = atoi(value.c_str());
@@ -423,7 +379,6 @@ void MotorBLEServer::handleStopIntervalWrite(const String& value) {
         LOG_ERROR("处理停止间隔写入异常: %s", e.what());
     }
 }
-// 处理系统控制写入
 // 处理系统控制写入
 void MotorBLEServer::handleSystemControlWrite(const String& value) {
     try {
@@ -575,8 +530,8 @@ String MotorBLEServer::generateStatusJson() {
     return jsonStr;
 }
 
-// 生成调速器状态JSON
-String MotorBLEServer::generateSpeedControllerStatusJson() {
+// 生成调速器配置JSON
+String MotorBLEServer::generateSpeedControllerConfigJson() {
     DynamicJsonDocument doc(1024);
     
     try {
@@ -898,12 +853,6 @@ void MotorBLEServer::handleSpeedControllerConfigWrite(const String& value) {
             if (pSpeedControllerConfigCharacteristic) {
                 pSpeedControllerConfigCharacteristic->setValue(value.c_str());
                 pSpeedControllerConfigCharacteristic->notify();
-            }
-            
-            // 立即读取并推送更新后的调速器状态
-            if (isConnected()) {
-                String speedControllerStatusJson = generateSpeedControllerStatusJson();
-                sendSpeedControllerStatusNotification(speedControllerStatusJson);
             }
         } else {
             LOG_ERROR("调速器配置更新失败: %s", pMotorModbusController->getLastError().c_str());
