@@ -64,13 +64,15 @@ public:
     
     /**
      * @brief 获取剩余运行时间（秒）
-     * @return 剩余运行时间
+     * @return 剩余运行时间（秒，用于BLE接口）
+     * @note 内部使用毫秒精度计算，返回时转换为秒
      */
     uint32_t getRemainingRunTime() const;
     
     /**
      * @brief 获取剩余停止时间（秒）
-     * @return 剩余停止时间
+     * @return 剩余停止时间（秒，用于BLE接口）
+     * @note 内部使用毫秒精度计算，返回时转换为秒
      */
     uint32_t getRemainingStopTime() const;
     
