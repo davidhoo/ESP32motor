@@ -59,12 +59,6 @@ public:
     void sendStatusNotification(const String& status);
     
     /**
-     * @brief 发送调速器状态通知
-     * @param status JSON格式的调速器状态信息
-     */
-    void sendSpeedControllerStatusNotification(const String& status);
-    
-    /**
      * @brief 获取最后错误信息
      * @return const char* 错误信息
      */
@@ -76,7 +70,7 @@ public:
     void handleSystemControlWrite(const String& value);
     void handleSpeedControllerConfigWrite(const String& value);
     String generateStatusJson();
-    String generateSpeedControllerStatusJson();
+    String generateSpeedControllerConfigJson();
     String generateInfoJson();
     void onSystemStateChanged(const StateChangeEvent& event);
 
@@ -123,8 +117,7 @@ private:
     static constexpr const char* STOP_INTERVAL_CHAR_UUID = "3f8a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c7";
     static constexpr const char* SYSTEM_CONTROL_CHAR_UUID = "4f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c8";
     static constexpr const char* STATUS_QUERY_CHAR_UUID = "5f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c9";
-    static constexpr const char* SPEED_CONTROLLER_STATUS_CHAR_UUID = "6f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5ca";
-    static constexpr const char* SPEED_CONTROLLER_CONFIG_CHAR_UUID = "7f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5cb";
+    static constexpr const char* SPEED_CONTROLLER_CONFIG_CHAR_UUID = "6f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5ca";
     
     // 设备名称
     static constexpr const char* DEVICE_NAME = "ESP32-Motor-Control";

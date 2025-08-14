@@ -171,7 +171,7 @@ void MotorBLEServerTest::testSpeedControllerStatusJsonGeneration() {
     MotorBLEServer& bleServer = MotorBLEServer::getInstance();
     
     // 测试调速器状态JSON生成
-    String json = bleServer.generateSpeedControllerStatusJson();
+    String json = bleServer.generateSpeedControllerConfigJson();
     MB_TEST_ASSERT_TRUE(json.length() > 0);
     
     // 验证JSON格式
