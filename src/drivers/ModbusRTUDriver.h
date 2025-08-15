@@ -2,15 +2,16 @@
 
 #include <Arduino.h>
 #include "SerialDriver.h"
+#include "../common/Config.h"
 
 class ModbusRTUDriver {
 public:
     ModbusRTUDriver();
     ~ModbusRTUDriver();
     
-    // 初始化
-    bool begin(uint8_t rxPin = 8, uint8_t txPin = 9, uint32_t baudRate = 9600, uint8_t slaveAddress = 0x01);
     
+    // 初始化
+    bool begin(uint8_t rxPin = MODBUS_RX_PIN, uint8_t txPin = MODBUS_TX_PIN, uint32_t baudRate = MODBUS_BAUD_RATE, uint8_t slaveAddress = MODBUS_SLAVE_ADDRESS);
     // MODBUS功能码实现
     bool readHoldingRegisters(uint16_t startAddress, uint16_t quantity, uint16_t* values);
     bool writeSingleRegister(uint16_t address, uint16_t value);

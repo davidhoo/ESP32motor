@@ -48,6 +48,12 @@
 #define BLE_STATUS_QUERY_CHAR_UUID "5f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c9"
 #define BLE_SPEED_CONTROLLER_CONFIG_CHAR_UUID "6f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5ca"
 
+// Modbus RTU 配置
+#define MODBUS_RX_PIN 8        // RX引脚
+#define MODBUS_TX_PIN 9        // TX引脚
+#define MODBUS_BAUD_RATE 9600  // 波特率
+#define MODBUS_SLAVE_ADDRESS 0x01  // 从机地址
+
 // 配置参数结构体
 struct MotorConfig
 {
