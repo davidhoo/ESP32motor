@@ -35,7 +35,7 @@ bool MotorBLEServer::init() {
     
     try {
         // 初始化BLE设备
-        BLEDevice::init(DEVICE_NAME);
+        BLEDevice::init(BLE_DEVICE_NAME);
         
         // 直接配置BLE低功耗参数
         configureBLELowPowerDirect();
@@ -51,7 +51,7 @@ bool MotorBLEServer::init() {
         pServer->setCallbacks(new ServerCallbacks(this));
         
         // 创建BLE服务
-        pService = pServer->createService(SERVICE_UUID);
+        pService = pServer->createService(BLE_SERVICE_UUID);
         if (!pService) {
             setError("创建BLE服务失败");
             return false;
@@ -59,47 +59,47 @@ bool MotorBLEServer::init() {
         
         // 创建运行时长特征值
         pRunDurationCharacteristic = pService->createCharacteristic(
-            RUN_DURATION_CHAR_UUID,
+            BLE_RUN_DURATION_CHAR_UUID,
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_NOTIFY
         );
-        pRunDurationCharacteristic->setCallbacks(new CharacteristicCallbacks(this, RUN_DURATION_CHAR_UUID));
+        pRunDurationCharacteristic->setCallbacks(new CharacteristicCallbacks(this, BLE_RUN_DURATION_CHAR_UUID));
         
         // 创建停止间隔特征值
         pStopIntervalCharacteristic = pService->createCharacteristic(
-            STOP_INTERVAL_CHAR_UUID,
+            BLE_STOP_INTERVAL_CHAR_UUID,
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_NOTIFY
         );
-        pStopIntervalCharacteristic->setCallbacks(new CharacteristicCallbacks(this, STOP_INTERVAL_CHAR_UUID));
+        pStopIntervalCharacteristic->setCallbacks(new CharacteristicCallbacks(this, BLE_STOP_INTERVAL_CHAR_UUID));
         
         // 创建系统控制特征值
         pSystemControlCharacteristic = pService->createCharacteristic(
-            SYSTEM_CONTROL_CHAR_UUID,
+            BLE_SYSTEM_CONTROL_CHAR_UUID,
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_NOTIFY
         );
-        pSystemControlCharacteristic->setCallbacks(new CharacteristicCallbacks(this, SYSTEM_CONTROL_CHAR_UUID));
+        pSystemControlCharacteristic->setCallbacks(new CharacteristicCallbacks(this, BLE_SYSTEM_CONTROL_CHAR_UUID));
         
         // 创建状态查询特征值
         pStatusQueryCharacteristic = pService->createCharacteristic(
-            STATUS_QUERY_CHAR_UUID,
+            BLE_STATUS_QUERY_CHAR_UUID,
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_NOTIFY
         );
-        pStatusQueryCharacteristic->setCallbacks(new CharacteristicCallbacks(this, STATUS_QUERY_CHAR_UUID));
+        pStatusQueryCharacteristic->setCallbacks(new CharacteristicCallbacks(this, BLE_STATUS_QUERY_CHAR_UUID));
   
         // 创建调速器配置特征值
         pSpeedControllerConfigCharacteristic = pService->createCharacteristic(
-            SPEED_CONTROLLER_CONFIG_CHAR_UUID,
+            BLE_SPEED_CONTROLLER_CONFIG_CHAR_UUID,
             BLECharacteristic::PROPERTY_READ |
             BLECharacteristic::PROPERTY_WRITE |
             BLECharacteristic::PROPERTY_NOTIFY
         );
-        pSpeedControllerConfigCharacteristic->setCallbacks(new CharacteristicCallbacks(this, SPEED_CONTROLLER_CONFIG_CHAR_UUID));
+        pSpeedControllerConfigCharacteristic->setCallbacks(new CharacteristicCallbacks(this, BLE_SPEED_CONTROLLER_CONFIG_CHAR_UUID));
         
         // 设置初始值 - 从ConfigManager获取实际配置值
         ConfigManager& configManager = ConfigManager::getInstance();
@@ -153,7 +153,7 @@ void MotorBLEServer::start() {
     // 启动低功耗广播
     BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
     if (pAdvertising) {
-        pAdvertising->addServiceUUID(SERVICE_UUID);
+        pAdvertising->addServiceUUID(BLE_SERVICE_UUID);
         pAdvertising->setScanResponse(false);
         
         // 设置低功耗广播间隔 (单位: 0.625ms)
@@ -255,27 +255,27 @@ void MotorBLEServer::CharacteristicCallbacks::onWrite(BLECharacteristic* pCharac
     String strValue = String(value.c_str());
     LOG_INFO("收到BLE写入: %s = %s", charUUID, strValue.c_str());
     
-    if (strcmp(charUUID, RUN_DURATION_CHAR_UUID) == 0) {
+    if (strcmp(charUUID, BLE_RUN_DURATION_CHAR_UUID) == 0) {
         bleServer->handleRunDurationWrite(strValue);
-    } else if (strcmp(charUUID, STOP_INTERVAL_CHAR_UUID) == 0) {
+    } else if (strcmp(charUUID, BLE_STOP_INTERVAL_CHAR_UUID) == 0) {
         bleServer->handleStopIntervalWrite(strValue);
-    } else if (strcmp(charUUID, SYSTEM_CONTROL_CHAR_UUID) == 0) {
+    } else if (strcmp(charUUID, BLE_SYSTEM_CONTROL_CHAR_UUID) == 0) {
         bleServer->handleSystemControlWrite(strValue);
-    } else if (strcmp(charUUID, SPEED_CONTROLLER_CONFIG_CHAR_UUID) == 0) {
+    } else if (strcmp(charUUID, BLE_SPEED_CONTROLLER_CONFIG_CHAR_UUID) == 0) {
         bleServer->handleSpeedControllerConfigWrite(strValue);
     }
 }
 
 void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharacteristic) {
-    if (strcmp(charUUID, RUN_DURATION_CHAR_UUID) == 0) {
+    if (strcmp(charUUID, BLE_RUN_DURATION_CHAR_UUID) == 0) {
         ConfigManager& configManager = ConfigManager::getInstance();
         MotorConfig config = configManager.getConfig();
         pCharacteristic->setValue(String(config.runDuration).c_str());
-    } else if (strcmp(charUUID, STOP_INTERVAL_CHAR_UUID) == 0) {
+    } else if (strcmp(charUUID, BLE_STOP_INTERVAL_CHAR_UUID) == 0) {
         ConfigManager& configManager = ConfigManager::getInstance();
         MotorConfig config = configManager.getConfig();
         pCharacteristic->setValue(String(config.stopDuration).c_str());
-    } else if (strcmp(charUUID, SYSTEM_CONTROL_CHAR_UUID) == 0) {
+    } else if (strcmp(charUUID, BLE_SYSTEM_CONTROL_CHAR_UUID) == 0) {
         // 系统控制开关状态，应该反映电机的实际运行状态
         MotorController& motorController = MotorController::getInstance();
         ConfigManager& configManager = ConfigManager::getInstance();
@@ -289,10 +289,10 @@ void MotorBLEServer::CharacteristicCallbacks::onRead(BLECharacteristic* pCharact
         } else {
             pCharacteristic->setValue("0");
         }
-    } else if (strcmp(charUUID, STATUS_QUERY_CHAR_UUID) == 0) {
+    } else if (strcmp(charUUID, BLE_STATUS_QUERY_CHAR_UUID) == 0) {
         String statusJson = bleServer->generateStatusJson();
         pCharacteristic->setValue(statusJson.c_str());
-    } else if (strcmp(charUUID, SPEED_CONTROLLER_CONFIG_CHAR_UUID) == 0) {
+    } else if (strcmp(charUUID, BLE_SPEED_CONTROLLER_CONFIG_CHAR_UUID) == 0) {
         // 返回当前的调速器配置
         String configJson = bleServer->generateSpeedControllerConfigJson();
         pCharacteristic->setValue(configJson.c_str());
@@ -618,8 +618,8 @@ String MotorBLEServer::generateSpeedControllerConfigJson() {
 String MotorBLEServer::generateInfoJson() {
     DynamicJsonDocument doc(256);
     
-    doc["deviceName"] = DEVICE_NAME;
-    doc["serviceUUID"] = SERVICE_UUID;
+    doc["deviceName"] = BLE_DEVICE_NAME;
+    doc["serviceUUID"] = BLE_SERVICE_UUID;
     doc["firmwareVersion"] = "1.0.0";
     doc["hardware"] = "ESP32-S3-Zero";
     doc["features"] = "Motor Control, LED Status, BLE Communication";
