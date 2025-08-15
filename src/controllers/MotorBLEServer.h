@@ -111,16 +111,7 @@ private:
     // MotorModbusController实例
     MotorModbusController* pMotorModbusController = nullptr;
     
-    // UUID定义 - 与需求文档保持一致
-    static constexpr const char* SERVICE_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
-    static constexpr const char* RUN_DURATION_CHAR_UUID = "2f7a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c6";
-    static constexpr const char* STOP_INTERVAL_CHAR_UUID = "3f8a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c7";
-    static constexpr const char* SYSTEM_CONTROL_CHAR_UUID = "4f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c8";
-    static constexpr const char* STATUS_QUERY_CHAR_UUID = "5f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5c9";
-    static constexpr const char* SPEED_CONTROLLER_CONFIG_CHAR_UUID = "6f9a9c2e-6b1a-4b5e-8b2a-c1c2c3c4c5ca";
     
-    // 设备名称
-    static constexpr const char* DEVICE_NAME = "ESP32-Motor-Control";
     
     // BLE服务器回调类
     class ServerCallbacks : public BLEServerCallbacks {
